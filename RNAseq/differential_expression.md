@@ -102,7 +102,61 @@ resultsNames(dds) # lists the coefficients
 res <- results(dds, name="condition_CDK12_vs_EV")
 # shrinked results for low counts 
 res.shrink <- lfcShrink(dds, coef="condition_CDK12_vs_EV", type="apeglm", svalue = FALSE)
-
 ```
 
 You can pass the `lfcThreshold = 1` argument to `result()` in order to compute p-values for the difference being higher than the logFC specified rather than just different from 0.
+
+### Extract counts
+
+```R
+dds <- estimateSizeFactors(dds)
+counts <- counts(dds, normalized=T)
+```
+
+### Remove batch effect
+
+To be performed on vst or rlog transformed data or logCPM in case of edgeR
+
+```R
+dds <- DESeqDataSetFromMatrix(countData=counts, colData=factors, design = ~ Batch + Covariate)
+dds <- DESeq(dds)
+vsd <- vst(dds, blind=FALSE)
+mat <- assay(vsd)
+mat <- limma::removeBatchEffect(mat, vsd$Batch)
+assay(vsd) <- mat
+counts_batch_corrected <- assay(vsd)
+```
+
+### Custom PCA function for DEseq2
+
+```r 
+library(ggrepel)
+
+# calculate the variance for each gene
+rv <- rowVars(assay(vsd))
+
+# select the ntop genes by variance
+# you can select them just by ranking by variance since a variance stabilizing tra nsformation
+# has been aleready applied
+select <- order(rv, decreasing=TRUE)[seq_len(min(1000, length(rv)))]
+
+PCA.raw <- prcomp(t(assay(vsd[select,])), center=T, scale = T)
+PCA <- PCA.raw$x %>%
+  as.data.frame() %>%
+  select(PC1, PC2, PC3, PC4, PC5) %>%
+  rownames_to_column("sample") %>%
+  left_join(colData)
+
+# the contribution to the total variance for each component
+PCA.var <- PCA.raw$sdev^2 / sum(PCA.raw$sdev^2)
+
+ggplot(PCA, aes(x=PC1, y=PC2, label=sample, color=pct.usable.reads))+
+  geom_point(size=2)+
+  geom_text_repel(max.overlaps = 30, min.segment.length = 0.1)+
+  scale_color_continuous(high="green", low="red")+
+  theme_bw()+
+  xlab(paste0("PC1 (", round(PCA.var[1]*100, 1), "%)"))+
+  ylab(paste0("PC2 (", round(PCA.var[3]*100, 1), "%)")) +
+  ggtitle("Identification of samle outliers by RNA quality")
+```
+
