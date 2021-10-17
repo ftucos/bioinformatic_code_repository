@@ -15,7 +15,7 @@ ensembl2symbol <- biomaRt::getBM(values = c("ENSG00000012048", "ENSG00000111328"
                                  attributes = c("external_gene_name", "entrezgene_id", "ensembl_gene_id", "gene_biotype", "description"),
                                 ) %>%
   ## Remove source info in the description field
-  mutate(description = gsub(description, pattern = "\\s?\\[.*\\]\\s?", replacement = ""))
+  mutate(description = str_remove(description, "\\s?\\[.*\\]\\s?"))
 
 ```
 
