@@ -124,5 +124,3 @@ library(BSgenome.Hsapiens.UCSC.hg38)
 extractTranscriptSeqs(Hsapiens, CDKN2Acds)
 ```
 
-
-
