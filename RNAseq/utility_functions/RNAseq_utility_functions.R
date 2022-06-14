@@ -9,7 +9,7 @@ library(tidyverse)
 ###############################
 #          OPTIONS            #
 ###############################
-species = "mouse"
+species = "human"
 if (species == "human") {
   biomart_species = "hsapiens_gene_ensembl"
   kegg_species = "hsa"
@@ -127,7 +127,7 @@ kegg_t2g <- kegg_t2g %>%
 table(kegg_t2g$gene %in% ensembl2symbol$external_gene_name)
 
 kegg_t2g <- kegg_t2g %>%
-  mutate(pathway = str_remove(pathway, " - Mus musculus \\(mouse\\)" %>% str_remove(" - Homo sapiens (human)"))) %>%
+  mutate(pathway = str_remove(pathway, " - Homo sapiens \\(human\\)") )%>%
   # adapt to the msigdb column names
   select(external_gene_name = gene, gs_name = pathway) %>%
   inner_join(ensembl2symbol %>% select(external_gene_name, ensembl_gene = ensembl_gene_id), by="external_gene_name") %>%
@@ -387,7 +387,7 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
                                   .GSEA.pos %>% arrange(NES) %>% pull(Description))) %>%
     ggplot(aes(x=Description, y=NES, fill=neglog10p, label=Description)) +
     geom_col() + 
-    geom_text(y=0.1, hjust = 0, size = 3.5)+
+    geom_text(y=max_NES*0.05, hjust = 0, size = 3.5)+
     scale_y_continuous(limits = c(0, max_NES))+
     theme_bw() +
     scale_fill_continuous(type = "gradient",
@@ -411,7 +411,7 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
                                   .GSEA.neg %>% arrange(desc(NES)) %>% pull(Description))) %>%
     ggplot(aes(x=Description, y=NES, fill=neglog10p, label=Description)) +
     geom_col() + 
-    geom_text(y=-0.1, hjust = 1, size = 3.5)+
+    geom_text(y=max_NES*-0.05, hjust = 1, size = 3.5)+
     scale_y_continuous(limits = c(-max_NES, 0))+
     theme_bw() +
     scale_fill_continuous(type = "gradient",
@@ -466,4 +466,154 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
            subgroup == "all" ~ (.GSEA %>% filter(qvalues <= cutoff) %>% nrow()/1.5 + 6)
          ))
 }
+
+# ORA -----------------------------------
+
+## Plot ORA table
+plotORA <- function(.ORA, title = "", cutoff = 0.05, subgroup = "all", truncate_label_at = 45) {
+  .ORA <- .ORA %>% 
+    filter(qvalue <= cutoff) %>%
+    # Truncate long strings
+    mutate(Description = str_trunc(Description, width = truncate_label_at, side = "right", ellipsis = ".."))
+  
+  # use it to set a common range scale
+  max_ratio <- .ORA %>% filter(qvalue <= cutoff) %>% pull("ratio") %>% max()
+  
+  .ORA.pos = .ORA %>% filter(direction == "pos")
+  .ORA.neg = .ORA %>% filter(direction == "neg")
+  
+  plot.pos <- .ORA.pos %>%
+    mutate(neglog10p = -log10(qvalue),
+           Description = factor(Description, levels = 
+                                  .ORA.pos %>% arrange(ratio) %>% pull(Description) %>% unique())) %>%
+    ggplot(aes(x=Description, y=ratio, fill=neglog10p, label=Description)) +
+    geom_col() + 
+    geom_text(y=max_ratio*0.05, hjust = 0, size = 3.5)+
+    scale_y_continuous(limits = c(0, max_ratio), labels = scales::label_percent())+
+    theme_bw() +
+    scale_fill_continuous(type = "gradient",
+                          high = "#DC3D2D", low = "#FED98B",
+                          space = "Lab", na.value = "grey50",
+                          label =  ~round(., digits = 1),
+                          guide = "colourbar", name = "-Log10(adj p-value)")  +
+    coord_flip() +
+    ggtitle("ORA: enrichment of upregulated genes") +
+    xlab("") +
+    ylab("Enrichment Ratio") +
+    theme(panel.grid = element_blank(),
+          plot.title.position = "plot",
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          title = element_text(size = 9))
+  
+  plot.neg <- .ORA.neg %>%
+    mutate(neglog10p = -log10(qvalue),
+           Description = factor(Description, levels = 
+                                  .ORA.neg %>% arrange(ratio) %>% pull(Description) %>% unique())) %>%
+    ggplot(aes(x=Description, y=ratio, fill=neglog10p, label=Description)) +
+    geom_col() + 
+    geom_text(y=max_ratio*0.05, hjust = 0, size = 3.5)+
+    scale_y_continuous(limits = c(0, max_ratio), labels = scales::label_percent())+
+    theme_bw() +
+    scale_fill_continuous(type = "gradient",
+                          high = "#4A7AB7", low = "#C2E3EE",
+                          space = "Lab", na.value = "grey50", guide = "colourbar",
+                          label = ~round(., digits = 1),
+                          name = "-Log10(adj p-value)")  +
+    coord_flip() +
+    ggtitle("ORA: enrichment of downregulated genes") +
+    xlab("") +
+    ylab("Enrichment Ratio") +
+    theme(panel.grid = element_blank(),
+          plot.title.position = "plot",
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          title = element_text(size = 9))
+  
+  
+  # Fixed dimensions based on number of pathways
+  plot.pos <-  set_panel_size(plot.pos,
+                              # define plot hieght based on the numer of pathways to be plotted
+                              height=unit((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow())/1.5, "cm"),
+                              width=unit(12, "cm"))
+  plot.neg <-  set_panel_size(plot.neg,
+                              # define plot hieght based on the numer of pathways to be plotted
+                              height=unit((.ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow())/1.5, "cm"),
+                              width=unit(12, "cm"))
+  
+  
+  if (subgroup == "pos") {
+    .plot <- grid.arrange(plot.pos, ncol=1, top=grid::textGrob(title),
+                          # Add 2 to free up some space for the title
+                          heights =c((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 3))
+  } else if (subgroup == "neg") {
+    .plot <- grid.arrange(plot.neg, ncol=1, top=grid::textGrob(title),
+                          # Add 2 to free up some space for the title
+                          heights =c((.ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 3))
+  } else if (subgroup == "all") {
+    # plot the plot
+    .plot <- grid.arrange(plot.pos, plot.neg, ncol=1, top=grid::textGrob(title),
+                          # Add 2 to free up some space for the title
+                          heights =c((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 3,
+                                     .ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 2)
+  }
+  plot(.plot)
+  # return a list, first item is the plot, second are the dimensions for saving it 
+  list("plot" = .plot,
+       "height" = case_when(
+         # Add some margins for axis and others
+         subgroup == "pos" ~ (.ORA.pos %>% filter(qvalue <= cutoff) %>% nrow()/1.5 + 3),
+         subgroup == "neg" ~ (.ORA.neg %>% filter(qvalue <= cutoff) %>% nrow()/1.5 + 3),
+         subgroup == "all" ~ (.ORA %>% filter(qvalue <= cutoff) %>% nrow()/1.5 + 6)
+       ))
+}
+
+
+
+
+
+
+runORA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE, toDataFrame = TRUE, custom_annotation=F, ...){
+  if(custom_annotation) {
+    # custom t2g object to be passed into annotatation argument
+    selected_t2g <- annotation
+  } else {
+    selected_t2g <- # extract t2g of interest based on string passed into annotation
+      t2g %>% filter(gs_subcat == annotation) %>% select(gs_name, ensembl_gene)
+  }
+  
+  .em_pos <- enricher(result %>% filter(log2FoldChange > 0) %>% pull("ensembl_gene_id"),
+                      TERM2GENE = selected_t2g,
+                      pAdjustMethod = "fdr",
+                      minGSSize = 5,maxGSSize = 500,
+                      pvalueCutoff = 1,
+                      qvalueCutoff = 1
+  )
+  
+  .em_pos.summary <- as.data.frame(.em_pos) %>% mutate(direction = "pos")
+  
+  .em_neg <- enricher(result %>% filter(log2FoldChange < 0) %>% pull("ensembl_gene_id"),
+                      TERM2GENE = selected_t2g,
+                      minGSSize = 5, maxGSSize = 500,
+                      pAdjustMethod = "fdr",
+                      pvalueCutoff = 1,
+                      qvalueCutoff = 1
+  )
+  
+  .em_neg.summary <- as.data.frame(.em_neg)  %>% mutate(direction = "neg")
+  
+  .em.summary <- rbind(.em_pos.summary,
+                       .em_neg.summary) %>%
+    mutate(ratio = as.numeric(str_extract(GeneRatio, "^[0-9]+"))/as.numeric(str_extract(BgRatio, "^[0-9]+")))
+  
+  # If not specified, use the object name as plot title
+  title <- ifelse(title == "", deparse(substitute(result)), title)
+  # PLot
+  if (plot == TRUE) {
+    plot(plotORA(.em.summary, title = title, cutoff = cutoff, ...))
+  }
+  
+  .em.summary
+}
+
 

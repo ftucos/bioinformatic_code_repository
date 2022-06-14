@@ -32,6 +32,23 @@ there is some discrepancy within the two libraries, this is probabile due to the
 
 In the following example we will be using the rest api to retreive the mapping withing each pathway and gene names (including aliases)
 
+```r
+# extract valid gene names
+ensembl2symbol <- biomaRt::getBM(mart = biomaRt::useMart("ensembl", dataset = "hsapiens_gene_ensembl"),
+                                 attributes = c("external_gene_name", "external_synonym", "ensembl_gene_id", "gene_biotype", "description")) %>%
+  ## Remove source info in the description field
+  mutate(description = str_remove(description, "\\s?\\[.*\\]\\s?"))
+
+alias2hcgn.raw <- ensembl2symbol %>%
+  select(external_gene_name, external_synonym) %>%
+  filter(!is.na(external_gene_name) & !is.na(external_synonym)) %>%
+  distinct()
+
+alias2hcgn <- set_names(x=alias2hcgn.raw$external_gene_name, nm=alias2hcgn.raw$external_synonym )
+```
+
+
+
 ```R
 library(tidyverse)
 
@@ -44,7 +61,16 @@ gene2name <- gene2name %>%
   filter(str_detect(gene, ";")) %>%
   mutate(gene = str_extract(gene, "^[^;]+") %>% strsplit(",\\s")) %>%
   # multiple gene names mapping the same id beacuse the mapping is based around orthologues
-  unnest(cols = "gene")
+  unnest(cols = "gene") %>%
+  # update alias names
+  mutate(external_gene_name = case_when(
+    gene_name %in% ensembl2symbol$external_gene_name ~ gene_name,
+    gene_name %in% ensembl2symbol$external_synonym ~ alias2hcgn[gene_name],
+    TRUE ~ as.character(NA)
+  )) %>%
+  select(-gene_name) %>%
+  filter(!is.na(external_gene_name)) %>%
+  distinct()
 
 # no empty fields
 table(is.na(gene2name))

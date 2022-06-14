@@ -19,16 +19,16 @@ def buildAnndataFromStar(path):
     """Generate an anndata object from the STAR aligner output folder"""
     path=path
     # Load Read Counts
-    X = sc.read_mtx(path+'Gene/raw/matrix.mtx')
+    X = sc.read_mtx(path+'/Gene/raw/matrix.mtx')
     
     # Transpose counts matrix to have Cells as rows and Genes as cols as expected by AnnData objects
     X = X.X.transpose()
     
     # This matrix is organized as a sparse matrix with Row, Colm and 3 values colums for 
     # Spliced, Unspliced and ambigous reads
-    mtx = np.loadtxt(path+'Velocyto/raw/matrix.mtx', skiprows=3, delimiter=' ')
+    mtx = np.loadtxt(path+'/Velocyto/raw/matrix.mtx', skiprows=3, delimiter=' ')
     # Extract sparse matrix shape informations from the third row
-    shape = np.loadtxt(path+'Velocyto/raw/matrix.mtx', skiprows=2, max_rows = 1 ,delimiter=' ')[0:2].astype(int)
+    shape = np.loadtxt(path+'/Velocyto/raw/matrix.mtx', skiprows=2, max_rows = 1 ,delimiter=' ')[0:2].astype(int)
 
     # Read the sparse matrix with csr_matrix((data, (row_ind, col_ind)), shape=(M, N))
     # Subract -1 to rows and cols index because csr_matrix expects a 0 based index
@@ -38,12 +38,12 @@ def buildAnndataFromStar(path):
     ambiguous = sparse.csr_matrix((mtx[:,4], (mtx[:,0]-1, mtx[:,1]-1)), shape = shape).transpose()
     
     # Load Genes and Cells identifiers
-    obs = pd.read_csv(path+'Velocyto/raw/barcodes.tsv',
+    obs = pd.read_csv(path+'/Velocyto/raw/barcodes.tsv',
                   header = None, index_col = 0)
     # Remove index column name to make it compliant with the anndata format
     obs.index.name = None
     
-    var = pd.read_csv(path+'Velocyto/raw/features.tsv', sep='\t',
+    var = pd.read_csv(path+'/Velocyto/raw/features.tsv', sep='\t',
                   names = ('gene_ids', 'feature_types'), index_col = 1)
     
     # Build AnnData object to be used with ScanPy and ScVelo
@@ -52,11 +52,38 @@ def buildAnndataFromStar(path):
     adata.var_names_make_unique()
     
     # Subset Cells based on STAR filters
-    selected_barcodes = pd.read_csv(path+'Gene/filtered/barcodes.tsv', header = None)
+    selected_barcodes = pd.read_csv(path+'/Gene/filtered/barcodes.tsv', header = None)
     adata = adata[selected_barcodes[0]]
     
     return adata.copy()
 ```
+
+alternative version with only counts and not velocity related matrices
+
+```python
+def buildAnndataFromStar(path):
+    """Generate an anndata object from the STAR aligner output folder
+	without velocity related informations"""
+	# Load Read Counts
+    X = sc.read_mtx(path+'/Gene/filtered/matrix.mtx')
+	# Transpose counts matrix to have Cells as rows and Genes as cols as expected by AnnData objects
+    X = X.X.transpose()
+	# Load Genes and Cells identifiers
+    obs = pd.read_csv(path+'/Gene/filtered/barcodes.tsv',
+                  header = None, index_col = 0)
+    # Remove index column name to make it compliant with the anndata format
+    obs.index.name = None
+    
+    var = pd.read_csv(path+'/Gene/filtered/features.tsv', sep='\t',
+                  names = ('gene_ids', 'feature_types'), index_col = 1)
+
+	# Build AnnData object to be used with ScanPy
+    adata = anndata.AnnData(X = X, obs = obs, var = var)
+    adata.var_names_make_unique()
+	return adata.copy()
+```
+
+
 
 **Load data** 
 
@@ -129,4 +156,63 @@ print('Number of cells passing filter: ' + str(adata.n_obs))
 # Remove reads mapped to mitochondrial DNA in order to scale after mitochondrial DNA removal
 adata = adata[:, adata.var['mt'] == False]
 ```
+
+
+
+## Analyze PCA Loadings
+
+```python
+PC_loading = pd.DataFrame({'symbol': adata.var_names,
+			 'PC1': adata.varm['PCs'][:,0],
+			 'PC2': adata.varm['PCs'][:,1],
+			 'PC3': adata.varm['PCs'][:,2],
+			 'PC4': adata.varm['PCs'][:,3],
+			 'PC5': adata.varm['PCs'][:,4]}).sort_values('PC1', ascending = False)
+```
+
+Analyze with GSEA
+
+```python
+import gseapy as gp
+from gseapy.plot import barplot, dotplot
+# gp.get_library_name()
+
+selected_PC = 'PC1'
+pre_res = gp.prerank(rnk=PC_loading.loc[:,['symbol', selected_PC]].sort_values(selected_PC, ascending=False),
+					 gene_sets='MSigDB_Hallmark_2020', #KEGG_2021_Human
+                     processes=8,
+                     permutation_num=100,
+                     seed=6,
+                     no_plot=True)
+
+pre_res.res2d.query('fdr < 0.05').sort_values('nes', ascending=False)
+```
+
+### Analyze with ORA
+
+First explore the distribution of loadings to select best elbow cutoff for number of genes to analyse
+
+```python
+selected_PC = 'PC1'
+plt.stem(list(range(500)), PC_loading.sort_values(selected_PC, ascending = False)[selected_PC][:500])
+plt.show()
+plt.stem(list(range(500)), PC_loading.sort_values(selected_PC, ascending = False)[selected_PC][-500:])
+plt.show()
+```
+
+Run PCA
+
+```python
+selected_PC = 'PC1'
+enr = gp.enrichr(gene_list= PC_loading.sort_values(selected_PC, ascending=False)['symbol'][:50].to_list(),
+                 gene_sets=['MSigDB_Hallmark_2020'], #'KEGG_2021_Human', 
+                 organism='Human', 
+                 description='test_name',
+                 no_plot = True,
+                 cutoff=0.05 # test dataset, use lower value from range(0,1)
+                )
+dotplot(enr.res2d)
+```
+
+
 
