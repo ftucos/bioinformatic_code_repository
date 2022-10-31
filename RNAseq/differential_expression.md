@@ -131,6 +131,7 @@ counts_batch_corrected <- assay(vsd)
 
 ```r 
 library(ggrepel)
+library(ggh4x) # set panel size preserving the ggplot object
 
 # calculate the variance for each gene
 rv <- rowVars(assay(vsd))
@@ -150,13 +151,21 @@ PCA <- PCA.raw$x %>%
 # the contribution to the total variance for each component
 PCA.var <- PCA.raw$sdev^2 / sum(PCA.raw$sdev^2)
 
-ggplot(PCA, aes(x=PC1, y=PC2, label=sample, color=pct.usable.reads))+
+# selected PCs to plot
+PCx <- 1
+PCy <- 2
+scale = 3
+
+ggplot(PCA, aes(x=!!as.symbol(paste0("PC", PCx)), y=!!as.symbol(paste0("PC", PCy)), label=sample_name_simp, color=condition))+
   geom_point(size=2)+
   geom_text_repel(max.overlaps = 30, min.segment.length = 0.1)+
-  scale_color_continuous(high="green", low="red")+
   theme_bw()+
-  xlab(paste0("PC1 (", round(PCA.var[1]*100, 1), "%)"))+
-  ylab(paste0("PC2 (", round(PCA.var[3]*100, 1), "%)")) +
-  ggtitle("Identification of samle outliers by RNA quality")
+  xlab(paste0("PC", PCx, " (", round(PCA.var[PCx]*100, 1), "%)"))+
+  ylab(paste0("PC", PCy, " (", round(PCA.var[PCy]*100, 1), "%)")) +
+  force_panelsizes(cols = unit(round(PCA.var[PCx]*10*scale, 0), "cm"),
+                   rows = unit(round(PCA.var[PCy]*10*scale, 0), "cm"))+
+  ggtitle("Principal Component Analysis")
+
+ggsave("processed/PCA_plot.png", plot=last_plot(), device = "png", width = round(PCA.var[PCx]*10*scale, 0) + 5, height=round(PCA.var[PCy]*10*scale, 0) + 5, unit="cm")
 ```
 
