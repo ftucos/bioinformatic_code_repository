@@ -100,7 +100,7 @@ VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj 
 
 pathway2gene = read_tsv(paste0("http://rest.kegg.jp/link/",kegg_species,"/pathway"), col_names = c("pathway_id", "gene_id"))
 pathway2name = read_tsv(paste0("http://rest.kegg.jp/list/pathway/", kegg_species), col_names = c("pathway_id", "pathway"))
-gene2name = read_tsv(paste0("http://rest.kegg.jp/list/", kegg_species), col_names = c("gene_id", "gene")) 
+gene2name = read_tsv(paste0("http://rest.kegg.jp/list/", kegg_species), col_names = c("gene_id", "biotype", "X3", "gene")) 
 
 gene2name <- gene2name %>%
   # gene with no semicolons have no name (eg. annotated cDNA sequences)
@@ -127,7 +127,7 @@ kegg_t2g <- kegg_t2g %>%
 table(kegg_t2g$gene %in% ensembl2symbol$external_gene_name)
 
 kegg_t2g <- kegg_t2g %>%
-  mutate(pathway = str_remove(pathway, " - Homo sapiens \\(human\\)") )%>%
+  mutate(pathway = str_remove(pathway, " - Homo sapiens \\(human\\)") %>% str_remove(" - Mus musculus \\(house mouse\\)"))%>%
   # adapt to the msigdb column names
   select(external_gene_name = gene, gs_name = pathway) %>%
   inner_join(ensembl2symbol %>% select(external_gene_name, ensembl_gene = ensembl_gene_id), by="external_gene_name") %>%
@@ -191,7 +191,7 @@ plotGSEA <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", fixed_d
     theme_bw() +
     scale_fill_continuous(type = "gradient",
                           low = "#E74C3C", high = "#F1C40F",
-                          space = "Lab", na.value = "grey50", guide = "colourbar")  +
+                          space = "Lab", na.value = "grey70", guide = "colourbar")  +
     coord_flip() +
     ggtitle(paste0("GSEA: ", title)) +
     xlab("") +
@@ -235,7 +235,7 @@ plotGSEAwide <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all") {
     theme_bw() +
     scale_fill_continuous(type = "gradient",
                           low = "#E74C3C", high = "#F1C40F",
-                          space = "Lab", na.value = "grey50", guide = "colourbar")  +
+                          space = "Lab", na.value = "grey70", guide = "colourbar")  +
     #   coord_flip() +
     ggtitle(paste0("GSEA: ", title)) +
     xlab("") +
@@ -376,13 +376,15 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
     mutate(Description = str_trunc(Description, width = truncate_label_at, side = "right", ellipsis = ".."))
   
   # use it to set a common range scale
-  max_NES <- .GSEA %>% filter(qvalues <= cutoff) %>% top_n(1, abs(NES)) %>% pull("NES") %>% abs()
+  max_NES <- .GSEA %>% filter(qvalues <= cutoff) %>% top_n(1, abs(NES)) %>% pull("NES") %>% abs() %>% unique()
   
   .GSEA.pos = .GSEA %>% filter(NES > 0)
   .GSEA.neg = .GSEA %>% filter(NES < 0)
   
   plot.pos <- .GSEA.pos %>%
     mutate(neglog10p = -log10(qvalues),
+           # set in gray non significant pathway
+           neglog10p = ifelse(neglog10p < -log10(0.05), as.double(NA), neglog10p),
            Description = factor(Description, levels = 
                                   .GSEA.pos %>% arrange(NES) %>% pull(Description))) %>%
     ggplot(aes(x=Description, y=NES, fill=neglog10p, label=Description)) +
@@ -392,7 +394,7 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
     theme_bw() +
     scale_fill_continuous(type = "gradient",
                           high = "#DC3D2D", low = "#FED98B",
-                          space = "Lab", na.value = "grey50",
+                          space = "Lab", na.value = "grey70",
                           label =  ~round(., digits = 1),
                           guide = "colourbar", name = "-Log10(adj p-value)")  +
     coord_flip() +
@@ -407,6 +409,8 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
   
   plot.neg <- .GSEA.neg %>%
     mutate(neglog10p = -log10(qvalues),
+           # set in gray non significant pathway
+           neglog10p = ifelse(neglog10p < -log10(0.05), as.double(NA), neglog10p),
            Description = factor(Description, levels = 
                                   .GSEA.neg %>% arrange(desc(NES)) %>% pull(Description))) %>%
     ggplot(aes(x=Description, y=NES, fill=neglog10p, label=Description)) +
@@ -416,7 +420,7 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
     theme_bw() +
     scale_fill_continuous(type = "gradient",
                           high = "#4A7AB7", low = "#C2E3EE",
-                          space = "Lab", na.value = "grey50", guide = "colourbar",
+                          space = "Lab", na.value = "grey70", guide = "colourbar",
                           label = ~round(., digits = 1),
                           name = "-Log10(adj p-value)")  +
     coord_flip() +
@@ -493,7 +497,7 @@ plotORA <- function(.ORA, title = "", cutoff = 0.05, subgroup = "all", truncate_
     theme_bw() +
     scale_fill_continuous(type = "gradient",
                           high = "#DC3D2D", low = "#FED98B",
-                          space = "Lab", na.value = "grey50",
+                          space = "Lab", na.value = "grey70",
                           label =  ~round(., digits = 1),
                           guide = "colourbar", name = "-Log10(adj p-value)")  +
     coord_flip() +
@@ -517,7 +521,7 @@ plotORA <- function(.ORA, title = "", cutoff = 0.05, subgroup = "all", truncate_
     theme_bw() +
     scale_fill_continuous(type = "gradient",
                           high = "#4A7AB7", low = "#C2E3EE",
-                          space = "Lab", na.value = "grey50", guide = "colourbar",
+                          space = "Lab", na.value = "grey70", guide = "colourbar",
                           label = ~round(., digits = 1),
                           name = "-Log10(adj p-value)")  +
     coord_flip() +
@@ -569,11 +573,7 @@ plotORA <- function(.ORA, title = "", cutoff = 0.05, subgroup = "all", truncate_
 }
 
 
-
-
-
-
-runORA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE, toDataFrame = TRUE, custom_annotation=F, ...){
+runORA <- function(result, annotation, title = "", cutoff = 0.05, log2FC_threshold = 1, padj_threshold = 0.05, plot = FALSE, toDataFrame = TRUE, custom_annotation=F, ...){
   if(custom_annotation) {
     # custom t2g object to be passed into annotatation argument
     selected_t2g <- annotation
@@ -582,17 +582,17 @@ runORA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE, 
       t2g %>% filter(gs_subcat == annotation) %>% select(gs_name, ensembl_gene)
   }
   
-  .em_pos <- enricher(result %>% filter(log2FoldChange > 0) %>% pull("ensembl_gene_id"),
+  .em_pos <- enricher(result %>% filter(log2FoldChange > log2FC_threshold, padj < padj_threshold) %>% pull("ensembl_gene_id"),
                       TERM2GENE = selected_t2g,
                       pAdjustMethod = "fdr",
-                      minGSSize = 5,maxGSSize = 500,
+                      minGSSize = 5, maxGSSize = 500,
                       pvalueCutoff = 1,
                       qvalueCutoff = 1
   )
   
   .em_pos.summary <- as.data.frame(.em_pos) %>% mutate(direction = "pos")
   
-  .em_neg <- enricher(result %>% filter(log2FoldChange < 0) %>% pull("ensembl_gene_id"),
+  .em_neg <- enricher(result %>% filter(log2FoldChange < -log2FC_threshold, padj < padj_threshold) %>% pull("ensembl_gene_id"),
                       TERM2GENE = selected_t2g,
                       minGSSize = 5, maxGSSize = 500,
                       pAdjustMethod = "fdr",
@@ -615,5 +615,3 @@ runORA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE, 
   
   .em.summary
 }
-
-
