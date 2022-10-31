@@ -13,11 +13,11 @@ conda install -y -c conda-forge python-igraph leidenalg louvain loompy h5py jupy
 conda install -y -c conda-forge -c bioconda cellrank
 conda install -y -c anaconda cytoolz ipykernel jupyter
 
-pip install 'scanpy[leiden]' openpyxl fa2 pybind11 hnswlib pyscenic harmonypy bbknn phate wishbone_dev scikit-misc
+pip install 'scanpy[leiden]' openpyxl fa2 pybind11 hnswlib pyscenic harmonypy bbknn phate wishbone_dev scikit-misc scrublet PhenoGraph
 pip install git+https://github.com/theislab/scvelo@develop
 pip install git+https://github.com/theislab/diffxpy
 pip3 install git+https://github.com/jacoblevine/phenograph.git
-
+pip install git+https://github.com/saezlab/decoupler-py
 ```
 
 Before installing rpy2 be sure that you don't have other r installations in your environment with `where R`.

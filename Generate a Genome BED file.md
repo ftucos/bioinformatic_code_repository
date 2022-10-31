@@ -2,6 +2,8 @@
 
 ### Gene BED file from GTF
 
+`makeTxDbFromGFF` supports also .gz comrpessed gtf files
+
 ```R
 library(AnnotationDbi)
 library(GenomicFeatures)

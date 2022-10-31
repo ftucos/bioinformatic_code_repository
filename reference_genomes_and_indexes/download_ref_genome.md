@@ -36,5 +36,13 @@ samtools faidx $GENOME_DIR/*.fa
 picard CreateSequenceDictionary -R $GENOME_DIR/*.fa
 ```
 
+**Zipped files:**
 
+You could keep every file zipped, most tools supports reading zipped files. However, for the genome.fa to be indexed, you need to bzip it. 
+
+```bash
+ bgzip < GRCh37.primary_assembly.genome.fa > GRCh37.primary_assembly.genome.fa.gz
+ samtools faidx GRCh37.primary_assembly.genome.fa.gz
+ picard CreateSequenceDictionary -R GRCh37.primary_assembly.genome.fa.gz
+```
 
