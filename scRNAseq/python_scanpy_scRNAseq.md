@@ -216,3 +216,65 @@ dotplot(enr.res2d)
 
 
 
+## run gsea of marker genes for each cluster
+
+```python
+def extract_markers(adata):
+	# initialize empty result
+	result = pd.DataFrame({'Gene': [],
+						   'Cluster': [],
+						   'log2FC': [],
+						   'pval': []})
+
+	for cluster in adata.uns['rank_genes_clusters']['logfoldchanges'].dtype.names:
+		partial_result = pd.DataFrame({'Gene': adata.uns['rank_genes_clusters']['names'][cluster],
+				'Cluster': cluster,
+				'log2FC': adata.uns['rank_genes_clusters']['logfoldchanges'][cluster],
+				'pval': adata.uns['rank_genes_clusters']['pvals'][cluster],
+				'pvals_adj': adata.uns['rank_genes_clusters']['pvals_adj'][cluster]})
+		result = pd.concat([partial_result, result], axis=0)
+	
+	# result = result.query('pvals_adj < 0.05')
+		
+	return result 
+```
+
+```python
+# run the analysis
+sc.tl.rank_genes_groups(adata, groupby='leiden', key_added='rank_genes_clusters', method='wilcoxon', use_raw=False)
+marker_genes = extract_markers(adata)
+marker_genes['score'] = marker_genes['log2FC'] * (- np.log10(marker_genes['pval']))
+
+# Export
+with pd.ExcelWriter("result/AIRC-report/NCAM1pos-DE_genes/LNCaP_NCAMpos-Marker_gene_by_cluster.xlsx") as writer:
+    marker_genes.to_excel(writer, sheet_name="marker_genes", index=False, freeze_panes = (True, False)) 
+```
+
+
+
+```python
+import gseapy as gp
+from gseapy.plot import barplot, dotplot
+
+# initialize empty dataframe
+result = pd.DataFrame({'Cluster': [], 'Term': [], 'ES': [], 'NES': [], 'NOM p-val': [], 'FDR q-val': [], 'Lead_genes': []})
+
+# iterate for each cluster
+for cluster in adata.uns['rank_genes_clusters']['logfoldchanges'].dtype.names:
+
+	# run gsea preranked for each fluster sorting by log2FC
+	prerank_res = gp.prerank(rnk=marker_genes.query('Cluster == "' + cluster + '"').loc[:,['Gene','log2FC']].sort_values('log2FC', ascending=False),
+							 gene_sets='KEGG_2021_Human', #'MSigDB_Hallmark_2020'
+                     		 processes=8,
+                     		 permutation_num=100,
+                     		 seed=6,
+                     		 no_plot=True)
+	# filter significant pathway and keep relevant column only
+	partial_res = prerank_res.res2d.query('`FDR q-val` < 0.05').sort_values('NES', ascending=False).loc[:,['Term', 'ES', 'NES', 'NOM p-val', 'FDR q-val', 'Lead_genes']]
+	
+	# add a column specifying the cluster
+	partial_res['Cluster'] = cluster
+
+	result = pd.concat([partial_res, result], axis=0)
+```
+

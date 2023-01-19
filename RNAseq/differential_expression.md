@@ -141,7 +141,7 @@ rv <- rowVars(assay(vsd))
 # has been aleready applied
 select <- order(rv, decreasing=TRUE)[seq_len(min(1000, length(rv)))]
 
-PCA.raw <- prcomp(t(assay(vsd[select,])), center=T, scale = T)
+PCA.raw <- prcomp(t(assay(vsd[select,])), center=T, scale = F)
 PCA <- PCA.raw$x %>%
   as.data.frame() %>%
   select(PC1, PC2, PC3, PC4, PC5) %>%
@@ -158,7 +158,7 @@ scale = 3
 
 ggplot(PCA, aes(x=!!as.symbol(paste0("PC", PCx)), y=!!as.symbol(paste0("PC", PCy)), label=sample_name_simp, color=condition))+
   geom_point(size=2)+
-  geom_text_repel(max.overlaps = 30, min.segment.length = 0.1)+
+  geom_text_repel(max.overlaps = 30, min.segment.length = 0.1,  show.legend = FALSE)+
   theme_bw()+
   xlab(paste0("PC", PCx, " (", round(PCA.var[PCx]*100, 1), "%)"))+
   ylab(paste0("PC", PCy, " (", round(PCA.var[PCy]*100, 1), "%)")) +
@@ -169,3 +169,28 @@ ggplot(PCA, aes(x=!!as.symbol(paste0("PC", PCx)), y=!!as.symbol(paste0("PC", PCy
 ggsave("processed/PCA_plot.png", plot=last_plot(), device = "png", width = round(PCA.var[PCx]*10*scale, 0) + 5, height=round(PCA.var[PCy]*10*scale, 0) + 5, unit="cm")
 ```
 
+### Custom plot function MDS in edgeR
+
+This is a similar (but not the same) to PCA. It uses log2FC as distances 
+
+```r 
+library(ggrepel)
+library(ggh4x) # set panel size preserving the ggplot object
+
+scale = 3
+
+MDS <- plotMDS(DEG.cell_line, top = 1000, plot=FALSE)
+
+ggplot(data = NULL, aes(x=MDS$x, y=MDS$y, label = rownames(MDS$distance.matrix.squared), color=metadata.cell_line$treatment)) +
+  geom_point(size=2) +
+  geom_text_repel(max.overlaps = 30, min.segment.length = 0.1, show.legend = F)+
+  theme_bw()+
+  xlab(paste0("Leading logFC dim 1\n(", round(MDS$var.explained[1]*100, 1), "%)"))+
+  ylab(paste0("Leading logFC dim 2\n(", round(MDS$var.explained[2]*100, 1), "%)")) +
+  force_panelsizes(cols = unit(round(MDS$var.explained[1]*10*scale, 0), "cm"),
+                   rows = unit(round(MDS$var.explained[2]*10*scale, 0), "cm"))+
+  ggtitle("Multidimensional scaling ")
+
+```
+
+#

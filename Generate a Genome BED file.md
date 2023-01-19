@@ -32,3 +32,27 @@ genes <- genes(hg38)
 # ... follow previous instructions
 ```
 
+#### with BedOps
+
+1. the first awk skips comment lines
+2. the second extracts gene levels annotations only
+3. the two sed reformats the name field to avoid spaces and fix ambiguities betwen tab separator that you will encounter if using bedops tools
+
+```bash	
+awk '/^[^#]/ { print $0 }' gencode.v38.primary_assembly.annotation.gtf | awk 'BEGIN{FS="\t";OFS="\t"} $3 == "gene" { print $1,$4,$5,$9,$6,$7 }' | sed -e 's/; /;/g' | sed -e 's/ /=/g' > gencode.v38.primary_assembly.annotation.bed
+```
+
+use the generated file to annotate a bed file with the 'name' field (column 4)
+
+```bash
+bedmap --echo --echo-map-id --delim ';' --multidelim  '|' ranges.bed gencode.v38.primary_assembly.annotation.bed > ranges.annotated.bed
+```
+
+for control freec CNVs
+
+```bash
+bedmap --echo --echo-map-id --delim '|' --multidelim  '|' <(awk -F '\t' '{ print "chr"$1, $2, $3, $4 }' sample.tumor.mpileup.gz_CNVs) gencode.v38.primary_assembly.annotation.bed > sample.annotated.bed
+```
+
+
+
