@@ -113,9 +113,8 @@ gene2name <- gene2name %>%
 #table(is.na(gene2name))
 
 kegg_t2g <- pathway2name %>%
-  left_join(pathway2gene) %>%
+  left_join(pathway2gene %>% mutate(pathway_id = str_remove(pathway_id, "path:"))) %>%
   left_join(gene2name)
-
 table(is.na(kegg_t2g))
 
 # remove 11 pathways with missing genes

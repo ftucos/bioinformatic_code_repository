@@ -162,12 +162,9 @@ adata = adata[:, adata.var['mt'] == False]
 ## Analyze PCA Loadings
 
 ```python
-PC_loading = pd.DataFrame({'symbol': adata.var_names,
-			 'PC1': adata.varm['PCs'][:,0],
-			 'PC2': adata.varm['PCs'][:,1],
-			 'PC3': adata.varm['PCs'][:,2],
-			 'PC4': adata.varm['PCs'][:,3],
-			 'PC5': adata.varm['PCs'][:,4]}).sort_values('PC1', ascending = False)
+PC_loading = pd.DataFrame(index = adata.var_names)
+for PC in range(0, adata.varm['PCs'].shape[1]):
+	PC_loading['PC' + str(PC+1)] = adata.varm['PCs'][:,PC]
 ```
 
 Analyze with GSEA
@@ -212,6 +209,16 @@ enr = gp.enrichr(gene_list= PC_loading.sort_values(selected_PC, ascending=False)
                  cutoff=0.05 # test dataset, use lower value from range(0,1)
                 )
 dotplot(enr.res2d)
+```
+
+## Plot PCs
+
+```python
+PC_projections = pd.DataFrame(index = adata.obs_names)
+for PC in range(0, adata.obsm['X_pca'].shape[1]):
+	PC_projections['PC' + str(PC+1) + '_position'] = adata.obsm['X_pca'][:,PC]
+
+adata.obs = pd.concat([adata.obs, PC_projections], axis = 1)
 ```
 
 

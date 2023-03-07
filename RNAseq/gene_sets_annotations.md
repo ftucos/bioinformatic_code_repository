@@ -118,3 +118,28 @@ YAPTAZ_targets_signature <- c("MYOF", "AMOTL2", "LATS2", "CTGF", "CYR61", "ANKRD
 http://baderlab.org/GeneSets
 
 They keep updating genesets periodically from different resources, offering also an "Human_allpathways*.gmt" with all the resources grouped together. This resource is particularry convenient for KEGG annotation. Some years ago KEGG changed the redistribution policy for it's gene sets and now manual download from theri website si required. Barderlab does that (don't think it's legit).
+
+## Manually parse GMT files
+
+```R
+parse_gmt_list <- function(element, gmt) {
+  data.frame(gs_name = element,
+             external_gene_name = gmt[[element]])
+}
+
+import_gmt <- function(path) {
+    gmt <-  qusage::read.gmt(path)
+    gmt_elements <- names(gmt)
+  
+   result <- map(gmt_elements, ~parse_gmt_list(., gmt)) %>%
+     do.call(what=rbind) %>%
+     left_join(ensembl2symbol %>% select(external_gene_name, ensembl_gene_id)) %>%
+     select(-external_gene_name, ensembl_gene = ensembl_gene_id) %>%
+     filter(!is.na(ensembl_gene)) %>%
+     distinct() 
+   result
+}
+
+pathway <- import_gmt("HumanCyc_2016.gmt")
+```
+
