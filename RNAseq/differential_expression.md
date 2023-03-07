@@ -193,4 +193,20 @@ ggplot(data = NULL, aes(x=MDS$x, y=MDS$y, label = rownames(MDS$distance.matrix.s
 
 ```
 
-#
+## Differential expression with no replicates
+
+```R
+bcv <- 0.2 # A priori defined dispersion
+
+DEG <-  DGEList(counts, group=metadata$Treatment)
+keep <- filterByExpr(DEG) 
+DEG <- DEG[keep, , keep.lib.sizes = T]
+DEG <- calcNormFactors(DEG)
+design <- model.matrix(~metadata$Treatment)
+DEG <- calcNormFactors(DEG)
+# it is recomended to add a prior count  to not overestimate foldChange of poorly expressed genes 
+et <- exactTest(DEG, dispersion = bcv^2, prior.count = 5)
+res <- topTags(et, n = "Inf")
+
+# or without p-values prediction
+logFC <- predFC(DEG, design, prior.count=5)
