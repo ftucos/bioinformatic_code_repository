@@ -10,9 +10,7 @@ neglog10_trans <- function(base = 10) {
             domain = c(1e-100, Inf))
 }
 
-
-compact_GSEA2 <- function(.GSEA, cutoff=0.05, title = "", truncate_label_at = 40) {
-  
+compact_GSEA2 <- function(.GSEA, cutoff=0.05, title = "", truncate_label_at = 42) {
   .GSEA <- .GSEA@result %>%
     filter(qvalues <= cutoff) %>%
     arrange(NES) %>%
@@ -32,10 +30,10 @@ compact_GSEA2 <- function(.GSEA, cutoff=0.05, title = "", truncate_label_at = 40
     # mock color gradient to supplement continous alpha scale not available in ggplot
     geom_rect(xmin=0, xmax=0, ymin=0,ymax=0, alpha = 0, aes(color = qvalues))+
     geom_col(aes(fill = NES > 0, alpha = qvalues), width = 0.75) +
-    geom_text(aes(label = Description, x = x_pos, hjust = hjust), size = 2, color = "black", alpha = 1) +
+    geom_text(aes(label = Description, x = x_pos, hjust = hjust), size = 2, color = "black") +
     geom_vline(xintercept = 0, linewidth = 0.25) +
     xlim(c(-max_NES, max_NES)) +
-    scale_fill_manual(values = c("#3082BD", "#DE2C26")) +
+    scale_fill_manual(values = c("FALSE" = "#3082BD", "TRUE" = "#DE2C26")) +
     scale_alpha_continuous(range = c(0.5, 1), trans = "neglog10") +
     scale_color_gradient(low = "#8A8A8A80", high = "#8A8A8A", trans = "neglog10") + 
     theme_bw(8) +
