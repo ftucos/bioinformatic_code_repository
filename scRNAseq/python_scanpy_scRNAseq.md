@@ -161,6 +161,8 @@ adata = adata[:, adata.var['mt'] == False]
 
 ## Analyze PCA Loadings
 
+Pc loadings should be computed on the whole list of genes and not only highly variable ones `sc.pp.pca(adata, n_comps=50, use_highly_variable=True)` to analyze pathways
+
 ```python
 PC_loading = pd.DataFrame(index = adata.var_names)
 for PC in range(0, adata.varm['PCs'].shape[1]):

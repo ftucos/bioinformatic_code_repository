@@ -5,13 +5,28 @@ library(ggrepel)
 library(egg)
 library(gridExtra)
 library(tidyverse)
-conflicted::conflict_prefer("select", "dplyr")
-conflicted::conflict_prefer("filter", "dplyr")
-conflicted::conflict_prefer("rename", "dplyr")
 
 ###############################
 #          OPTIONS            #
 ###############################
+species = "human"
+if (species == "human") {
+  biomart_species = "hsapiens_gene_ensembl"
+  kegg_species = "hsa"
+} else if (species == "mouse") {
+  biomart_species = "mmusculus_gene_ensembl"
+  kegg_species = "mmu"
+    
+}
+
+# Gene ID conversion table -----------------------
+mart <- biomaRt::useMart("ensembl", dataset = biomart_species)
+ensembl2symbol <- biomaRt::getBM(mart = mart,
+                                 attributes = c("external_gene_name", "ensembl_gene_id",
+                                                "gene_biotype",
+                                                "description")) %>%
+  ## Remove source info in the description field
+  mutate(description = str_remove(description, "\\s?\\[.*\\]\\s?"))
 
 # Annotate Result Table ---------------------------
 ResToTable <- function(res, package) {
@@ -79,6 +94,65 @@ VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj 
     xlab(expression(log["2"](Fold~Change))) + ylab(expression(-log["10"](Adjusted~p~Value))) + 
     ggtitle(title)
 }
+
+
+# Load latest KEGG pathway annotation data -----------------------------------
+
+pathway2gene = read_tsv(paste0("http://rest.kegg.jp/link/",kegg_species,"/pathway"), col_names = c("pathway_id", "gene_id"))
+pathway2name = read_tsv(paste0("http://rest.kegg.jp/list/pathway/", kegg_species), col_names = c("pathway_id", "pathway"))
+gene2name = read_tsv(paste0("http://rest.kegg.jp/list/", kegg_species), col_names = c("gene_id", "biotype", "X3", "gene")) 
+
+gene2name <- gene2name %>%
+  # gene with no semicolons have no name (eg. annotated cDNA sequences)
+  filter(str_detect(gene, ";")) %>%
+  mutate(gene = str_extract(gene, "^[^;]+") %>% strsplit(",\\s")) %>%
+  # multiple gene names mapping the same id beacuse the mapping is based around orthologues
+  unnest(cols = "gene")
+
+# no empty fields
+#table(is.na(gene2name))
+
+kegg_t2g <- pathway2name %>%
+  left_join(pathway2gene %>% mutate(pathway_id = str_remove(pathway_id, "path:"))) %>%
+  left_join(gene2name)
+table(is.na(kegg_t2g))
+
+# remove 11 pathways with missing genes
+kegg_t2g <- kegg_t2g %>%
+  filter(!is.na(gene))
+
+#table(is.na(kegg_t2g))
+
+table(kegg_t2g$gene %in% ensembl2symbol$external_gene_name)
+
+kegg_t2g <- kegg_t2g %>%
+  mutate(pathway = str_remove(pathway, " - Homo sapiens \\(human\\)") %>% str_remove(" - Mus musculus \\(house mouse\\)"))%>%
+  # adapt to the msigdb column names
+  select(external_gene_name = gene, gs_name = pathway) %>%
+  inner_join(ensembl2symbol %>% select(external_gene_name, ensembl_gene = ensembl_gene_id), by="external_gene_name") %>%
+  distinct() %>%
+  mutate(gs_subcat = "KEGG_latest") %>%
+  rename("gene_symbol" = "external_gene_name")
+
+
+# GSEA ----------------------------------------
+## Load annotation sets for GSEA
+msigdb <- msigdbr(species = species)
+# clean version of the annotation database
+t2g <- msigdb %>%
+  mutate(gs_subcat = ifelse(gs_cat == "H", "HALLMARK", str_remove(gs_subcat, "^CP:"))) %>%
+  # select signature of interest
+  filter(gs_subcat %in% c("HALLMARK", "KEGG", "REACTOME", "PID", "BP", "WIKIPATHWAYS", "GO:BP")) %>%
+  mutate(gs_name = case_when(
+    gs_subcat == "HALLMARK" ~ str_remove(gs_name, "^HALLMARK_") %>% str_replace_all("_", " "),
+    gs_subcat == "KEGG" ~ gs_description,
+    gs_subcat == "REACTOME" ~ gs_description,
+    gs_subcat == "PID" ~ gs_description,
+    gs_subcat == "WIKIPATHWAYS" ~ gs_description,
+    gs_subcat == "GO:BP" ~ str_remove(gs_name, "^GOBP_") %>% str_replace_all("_", " "),
+    TRUE ~ gs_name)) %>%
+  # add latest kegg annotations
+  bind_rows(kegg_t2g)
 
 ## Prepare imput data for GSEA
 PrepareForGSEA <- function(result, .na.rm = FALSE) {
@@ -187,11 +261,9 @@ runGSEA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE,
               TERM2GENE = selected_t2g,
               pAdjustMethod = "fdr",
               by = "fgsea",
-              minGSSize = 5,
               pvalueCutoff = 1,
-              nPermSimple = 10000,
               eps = 0,
-              seed = 1111
+              seed = 111 
               )
   .em.summary <- as.data.frame(.em)
   
@@ -208,6 +280,32 @@ runGSEA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE,
     return(.em)
   }
 }
+
+# Pathway annotation table --------------------------------------------
+pathway_annotation_table <- full_join(
+    t2g %>% filter(gs_subcat == "HALLMARK") %>%
+      select(gs_name, ensembl_gene) %>%
+      group_by(ensembl_gene) %>%
+      summarize(pathways = paste0(gs_name, collapse = "|")) %>%
+      rename("ensembl_gene_id" = "ensembl_gene",
+             "HALLMARK" = "pathways"),
+    t2g %>% filter(gs_subcat == "KEGG_latest") %>%
+      group_by(ensembl_gene) %>%
+      summarize(pathways = paste0(gs_name, collapse = "|")) %>%
+      rename("ensembl_gene_id" = "ensembl_gene",
+             "KEGG_latest" = "pathways")) %>%
+  full_join(
+    t2g %>% filter(gs_subcat == "REACTOME") %>%
+      group_by(ensembl_gene) %>%
+      summarize(pathways = paste0(gs_name, collapse = "|")) %>%
+      rename("ensembl_gene_id" = "ensembl_gene",
+             "REACTOME" = "pathways")) %>%
+  full_join(
+    t2g %>% filter(gs_subcat == "PID") %>%
+      group_by(ensembl_gene) %>%
+      summarize(pathways = paste0(gs_name, collapse = "|")) %>%
+      rename("ensembl_gene_id" = "ensembl_gene",
+             "PID" = "pathways"))
 
 # Define custom GSEA plot function ------------
 custom_gseaplot <- function(res, pathway) {
@@ -230,21 +328,19 @@ plotHEATMAP <- function(zscore, selected_genes, title, ylab) {
                                        levels=result %>% arrange(log2FoldChange*-log10(pvalue)) %>% filter(external_gene_name %in% selected_genes) %>% pull("external_gene_name") %>% unique()))
   
   heatmap <- heatmap.input %>%
-    # remove cell line name
-  #  mutate(sample =  str_replace_all(sample, "_", " ") %>% str_remove("^[^\\s]+")) %>%
+    mutate(sample = str_remove(sample, paste0(selected_sample, "_")) %>% str_replace_all("_", " ")) %>%
     ggplot(aes(x=sample, y=external_gene_name, fill=zscore)) +
     geom_tile()+
     scale_x_discrete(expand=c(0, 0)) + 
     scale_y_discrete(expand=c(0, 0))+
-    scale_fill_distiller(type = "div",palette = 5, name="z-score(log2(CPM+1))",
+    scale_fill_distiller(type = "div",palette = 5, name="z-score(logCPM)",
                          guide = guide_colorbar(frame.colour = "black", ticks.colour = "black"))+
     theme(legend.position = "none")+
     theme_bw() +
     theme(panel.grid = element_blank(),
           plot.title.position = "plot",
           panel.border = element_rect(size=0.75),
-          legend.position = "bottom",
-          axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
+          legend.position = "bottom")+
     ylab(ylab)+
     xlab("") +
     ggtitle(title)
@@ -256,6 +352,20 @@ plotHEATMAP <- function(zscore, selected_genes, title, ylab) {
   
   heatmap
 }
+
+# remove intermediate files -----------------
+rm(gene2name, kegg_t2g, pathway2gene, pathway2name, msigdb, biomart_species, kegg_species, species)
+
+
+
+
+
+
+
+
+
+
+# ------------------------------
 
 ## Plot GSEA table
 plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", truncate_label_at = 45) {
@@ -278,9 +388,9 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
                                   .GSEA.pos %>% arrange(NES) %>% pull(Description))) %>%
     ggplot(aes(x=Description, y=NES, fill=neglog10p, label=Description)) +
     geom_col() + 
-    geom_text(y=max_NES*0.05, hjust = 0, size = 3)+
+    geom_text(y=max_NES*0.05, hjust = 0, size = 3.5)+
     scale_y_continuous(limits = c(0, max_NES))+
-    theme_bw(8) +
+    theme_bw() +
     scale_fill_continuous(type = "gradient",
                           high = "#DC3D2D", low = "#FED98B",
                           space = "Lab", na.value = "grey70",
@@ -291,24 +401,22 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
     xlab("") +
     ylab("Normalized Enrichment Score") +
     theme(panel.grid = element_blank(),
-          panel.border = element_rect(linewidth = 0.5, color="black", fill=NA),
           plot.title.position = "plot",
-          axis.text = element_text(color = "black", size = 8),
           axis.text.y = element_blank(),
-          axis.ticks = element_line(color = "black", linewidth = 0.5),
           axis.ticks.y = element_blank(),
           title = element_text(size = 9))
   
   plot.neg <- .GSEA.neg %>%
     mutate(neglog10p = -log10(qvalues),
+           # set in gray non significant pathway
            neglog10p = ifelse(neglog10p < -log10(0.05), as.double(NA), neglog10p),
            Description = factor(Description, levels = 
                                   .GSEA.neg %>% arrange(desc(NES)) %>% pull(Description))) %>%
     ggplot(aes(x=Description, y=NES, fill=neglog10p, label=Description)) +
     geom_col() + 
-    geom_text(y=max_NES*-0.05, hjust = 1, size = 3)+
+    geom_text(y=max_NES*-0.05, hjust = 1, size = 3.5)+
     scale_y_continuous(limits = c(-max_NES, 0))+
-    theme_bw(8) +
+    theme_bw() +
     scale_fill_continuous(type = "gradient",
                           high = "#4A7AB7", low = "#C2E3EE",
                           space = "Lab", na.value = "grey70", guide = "colourbar",
@@ -319,11 +427,8 @@ plotGSEAcompact <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", 
     xlab("") +
     ylab("Normalized Enrichment Score") +
     theme(panel.grid = element_blank(),
-          panel.border = element_rect(linewidth = 0.5, color="black", fill=NA),
           plot.title.position = "plot",
-          axis.text = element_text(color = "black", size = 8),
           axis.text.y = element_blank(),
-          axis.ticks = element_line(color = "black", linewidth = 0.5),
           axis.ticks.y = element_blank(),
           title = element_text(size = 9)
           )
@@ -432,37 +537,37 @@ plotORA <- function(.ORA, title = "", cutoff = 0.05, subgroup = "all", truncate_
   # Fixed dimensions based on number of pathways
   plot.pos <-  set_panel_size(plot.pos,
                               # define plot hieght based on the numer of pathways to be plotted
-                              height=unit((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow())/2, "cm"),
-                              width=unit(5, "cm"))
+                              height=unit((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow())/1.5, "cm"),
+                              width=unit(12, "cm"))
   plot.neg <-  set_panel_size(plot.neg,
                               # define plot hieght based on the numer of pathways to be plotted
-                              height=unit((.ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow())/2, "cm"),
-                              width=unit(5, "cm"))
+                              height=unit((.ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow())/1.5, "cm"),
+                              width=unit(12, "cm"))
   
   
   if (subgroup == "pos") {
     .plot <- grid.arrange(plot.pos, ncol=1, top=grid::textGrob(title),
                           # Add 2 to free up some space for the title
-                          heights =c((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow()/2) + 3))
+                          heights =c((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 3))
   } else if (subgroup == "neg") {
     .plot <- grid.arrange(plot.neg, ncol=1, top=grid::textGrob(title),
                           # Add 2 to free up some space for the title
-                          heights =c((.ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow()/2) + 3))
+                          heights =c((.ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 3))
   } else if (subgroup == "all") {
     # plot the plot
     .plot <- grid.arrange(plot.pos, plot.neg, ncol=1, top=grid::textGrob(title),
                           # Add 2 to free up some space for the title
-                          heights =c((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow()/2) + 3,
-                                     .ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow()/2) + 2)
+                          heights =c((.ORA.pos %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 3,
+                                     .ORA.neg %>% filter(qvalue <= cutoff ) %>% nrow()/1.5) + 2)
   }
   plot(.plot)
   # return a list, first item is the plot, second are the dimensions for saving it 
   list("plot" = .plot,
        "height" = case_when(
          # Add some margins for axis and others
-         subgroup == "pos" ~ (.ORA.pos %>% filter(qvalue <= cutoff) %>% nrow()/2 + 3),
-         subgroup == "neg" ~ (.ORA.neg %>% filter(qvalue <= cutoff) %>% nrow()/2 + 3),
-         subgroup == "all" ~ (.ORA %>% filter(qvalue <= cutoff) %>% nrow()/2 + 6)
+         subgroup == "pos" ~ (.ORA.pos %>% filter(qvalue <= cutoff) %>% nrow()/1.5 + 3),
+         subgroup == "neg" ~ (.ORA.neg %>% filter(qvalue <= cutoff) %>% nrow()/1.5 + 3),
+         subgroup == "all" ~ (.ORA %>% filter(qvalue <= cutoff) %>% nrow()/1.5 + 6)
        ))
 }
 
@@ -509,4 +614,3 @@ runORA <- function(result, annotation, title = "", cutoff = 0.05, log2FC_thresho
   
   .em.summary
 }
-

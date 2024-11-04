@@ -6,7 +6,7 @@ custom_gseaplot2 <- function(x, geneSetID) {
   gsdata <- enrichplot:::gsInfo(x, geneSetID)
   
   # statistics label
-  signif_label <- ifelse(nrow(x@result) > 1,
+  signif_label <- ifelse(nrow(GSEA_YAPTAZ@result) > 1,
                          paste0("NES: ", round(statistics$NES,2),"\np-value: ", format(statistics$pvalue, digits=2, scipen = 0), "\nq-value: ",  format(statistics$qvalues, digits=2, scipen = 0)),
                          paste0("NES: ", round(statistics$NES,2),"\np-value: ", format(statistics$pvalue, digits=2, scipen = 0))
   )
@@ -33,10 +33,9 @@ custom_gseaplot2 <- function(x, geneSetID) {
           axis.title.x = element_blank(),
           axis.ticks.x = element_blank(),
           axis.text.x = element_blank(),
-          axis.text.y = element_text(size = 8, color = "black"),
+          axis.text.y = element_text(size = 8, color = "black", margin = margin(t=0, r=0, b=0, l=0, unit="cm")),
           plot.margin = margin(t=0, b=0,unit="cm"),
           axis.ticks.length.x = unit(0, "null"),
-          axis.ticks.margin = unit(0, "null"),
           text = element_text(size = 8),
           legend.position = "none") +
     scale_x_continuous(expand=c(0,0)) +
@@ -50,7 +49,7 @@ custom_gseaplot2 <- function(x, geneSetID) {
     #              size=1, fill="#1A9F62", alpha = 0.3) +
     # add line
     geom_line(aes_(y = ~runningScore, color= ~Description),
-              size=0.7, color = "#1A9F62") +
+              linewidth=0.7, color = "#1A9F62") +
     # position for cohordinates based on positive or negative enrichment score
     {if(enrichmentScore > 0)annotate("text",
                                      x=nrow(gsdata)*0.97, y=enrichmentScore*0.97,
@@ -91,7 +90,7 @@ custom_gseaplot2 <- function(x, geneSetID) {
     geom_rect(data=d, 
               aes_(xmin=~xmin, xmax=~xmax, ymin=~ymin, ymax=~ymax, fill=~I(col)),
               alpha=1, inherit.aes=FALSE) +
-    geom_linerange(aes_(ymin=~ymin+ymax*0.25, ymax=~ymax*0.75), color="black", size = 0.3, alpha = 0.5) +
+    geom_linerange(aes_(ymin=~ymin+ymax*0.25, ymax=~ymax*0.75), color="black", linewidth = 0.3, alpha = 0.5) +
     xlab(NULL) + ylab(NULL) + theme_classic(8) +
     theme(legend.position = "none",
           #plot.margin = margin(t=-.1, b=0,unit="cm"),
@@ -101,9 +100,8 @@ custom_gseaplot2 <- function(x, geneSetID) {
           axis.ticks = element_line(color = "black", linewidth = 0.5),
           axis.ticks.y = element_blank(),
           axis.text.y = element_blank(),
-          axis.text.x = element_text(size = 8, color = "black"),
+          axis.text.x = element_text(size = 8, color = "black", margin = margin(t=0, r=0, b=0, l=0, unit="cm")),
           axis.ticks.length.y = unit(0, "null"),
-          axis.ticks.margin = unit(0, "null"),
           panel.border = element_rect(linewidth = 0.5, color="black", fill=NA)) +
     scale_x_continuous(expand=c(0,0)) +
     scale_y_continuous(expand=c(0,0))  +

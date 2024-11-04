@@ -31,3 +31,35 @@ It's not recomended to rely on conda's installations of R since not all packages
 pip install rpy2
 ```
 
+# sciVI tool enviroment
+
+```python
+conda create -n scvi-env python=3.9
+conda activate scvi-env
+
+
+conda install -y pytorch torchvision torchaudio -c pytorch
+conda install -y jax jaxlib -c conda-forge
+
+conda install -y -c conda-forge -c bioconda -c anaconda numpy scipy pandas matplotlib seaborn pytables scikit-learn statsmodels numba pytables notebook python-igraph leidenalg louvain loompy h5py jupyterlab multicore-tsne ipywidgets jupyterlab_widgets cytoolz ipykernel jupyter
+
+conda install -y -c conda-forge scanpy python-igraph leidenalg
+
+pip install 'scanpy[leiden]' openpyxl fa2 pybind11 hnswlib pyscenic harmonypy bbknn phate wishbone_dev scikit-misc scrublet PhenoGraph
+pip install git+https://github.com/theislab/scvelo@develop
+# pip install git+https://github.com/theislab/diffxpy
+# pip3 install git+https://github.com/jacoblevine/phenograph.git
+# pip install git+https://github.com/saezlab/decoupler-py
+
+conda install -c conda-forge -c bioconda gseapy
+
+conda install -c conda-forge scikit-misc
+
+pip install rpy2
+
+pip install Cython --install-option="--no-cython-compile"
+conda install -c bioconda forceatlas2-python
+```
+
+conda install -y -c conda-forge -c bioconda -c anaconda numpy scipy pandas matplotlib seaborn pytables scikit-learn statsmodels numba pytables notebook python-igraph leidenalg louvain loompy h5py jupyterlab multicore-tsne ipywidgets jupyterlab_widgets cytoolz ipykernel jupyter
+
