@@ -55,27 +55,31 @@ VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj 
   df <- result %>%
     # Color code base on up/downregulation state defined by custom thresholds
     mutate(color = case_when(
-                             log2FoldChange >= thrLog2FC & padj <= thrPadj ~ "up",
-                             log2FoldChange <= -thrLog2FC & padj <= thrPadj ~ "down"),
-           # labels to be shown need to be matching upregulated genes and be within the filtering threshold
-          lab = ifelse(abs(log2FoldChange) >= thrLog2FC &
-                         padj <= thrPadj &
-                         # annotate protein coding only 
-                         (!protein_coding_label_only) | (ensembl_gene_id %in% (ensembl2symbol %>% filter(gene_biotype == "protein_coding") %>% pull("ensembl_gene_id"))) &
-                         abs(log2FoldChange * -log10(pvalue)) >= label_cutof, external_gene_name, NA))
+      log2FoldChange >= thrLog2FC & padj <= thrPadj ~ "up",
+      log2FoldChange <= -thrLog2FC & padj <= thrPadj ~ "down"),
+      # labels to be shown need to be matching upregulated genes and be within the filtering threshold
+      lab = ifelse(abs(log2FoldChange) >= thrLog2FC &
+                     padj <= thrPadj &
+                     # annotate protein coding only 
+                     (!protein_coding_label_only) | (ensembl_gene_id %in% (ensembl2symbol %>% filter(gene_biotype == "protein_coding") %>% pull("ensembl_gene_id"))) &
+                     abs(log2FoldChange * -log10(pvalue)) >= label_cutof, external_gene_name, NA)) %>%
+    # plot on background genes that are not within the filtering threshold
+    arrange(color)
+  
+  
   
   ggplot(df, aes(x=log2FoldChange, y=-log10(padj), color = color)) +
-    geom_point(data=filter(df, is.na(color)), aes(x=log2FoldChange, y=-log10(padj)), color="gray", size=1) +
     geom_point(size = 1) +
     geom_vline(xintercept = c(-thrLog2FC, thrLog2FC), linetype = "dashed")+
     geom_hline(yintercept = -log10(thrPadj), linetype = "dashed")+
-    geom_text_repel(aes(label = lab), size=3, color="black", segment.alpha = 0.7, max.overlaps = 40)+
+    geom_text_repel(data = df %>% filter(!is.na(lab)),
+                    aes(label = lab), size=3, color="black", segment.alpha = 0.7, max.overlaps = 40)+
     theme_bw() +
     theme(panel.grid = element_blank(),
           panel.border = element_rect(size = 1),
           legend.position = "none") +
     xlim(x_limits) +
-    scale_color_manual(values = c("dodgerblue", "brown1"), na.translate = F) +
+    scale_color_manual(values = c("dodgerblue", "brown1"), na.value = "grey") +
     xlab(expression(log["2"](Fold~Change))) + ylab(expression(-log["10"](Adjusted~p~Value))) + 
     ggtitle(title)
 }
@@ -191,7 +195,7 @@ runGSEA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE,
               pvalueCutoff = 1,
               nPermSimple = 10000,
               eps = 0,
-              seed = 1111
+              seed = FALSE # use session seed
               )
   .em.summary <- as.data.frame(.em)
   
