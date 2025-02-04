@@ -1,11 +1,11 @@
 library(RColorBrewer)
 
-custom_gseaplot2 <- function(x, geneSetID, simplify_curve = TRUE) {
+custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRUE) {
   statistics <- x %>% as.data.frame() %>% filter(Description == geneSetID)
   
   gsdata <- enrichplot:::gsInfo(x, geneSetID)
   
-  if(simplify_curve){
+  if(simplifyCurve){
     gsdata <- gsdata %>%
       # remove points by gsdata for which the previous point has
       # an higher runningScore value and the next point has a lover runningScore value
@@ -77,7 +77,7 @@ custom_gseaplot2 <- function(x, geneSetID, simplify_curve = TRUE) {
   # now banded plot ---------------------------------------
   
   p2 <- ggplot() +
-    geom_vline(data = gsdata %>% filter(position == 1), aes(xintercept=x), color="black", size = 0.3, alpha = 0.5) +
+    geom_vline(data = gsdata %>% filter(position == 1), aes(xintercept=x), color="black", size = 0.3, alpha = genesAlpha) +
     scale_x_continuous(expand = c(0,0), limits = c(min(gsdata$x), max(gsdata$x))) +
     scale_y_continuous(expand=c(0,0))  +
     coord_cartesian(clip = "off") +
