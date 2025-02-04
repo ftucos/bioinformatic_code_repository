@@ -24,13 +24,13 @@ custom_gseaplot2 <- function(x, geneSetID, simplify_curve = TRUE) {
   
   # identify the datapoint that leads to the ES
   es.df <- gsdata %>%
-    # identify max deviation from 0 (actually from Enrichment score)
-    filter(runningScore - enrichmentScore <= 0) %>%
-    # if more than one position is lower thean ES, select the lowest 
-    slice_min(order_by = runningScore, n=1, with_ties = T) %>%
-    # in case of pair select the first in order
-    slice_min(order_by = x, n=1, with_ties = F)
-  # es.df <- data.frame(es = which.min(abs(p$data$runningScore - enrichmentScore)))
+    slice_max(order_by = abs(runningScore), n=1, with_ties = F)
+
+  # verify its matching the enrichmentScore
+  if(abs(es.df$runningScore - enrichmentScore) > 0.1) {
+    stop("Enrichment Score does not match extracted runningScore")
+  }
+  
   
   # setup theme
   p1 <- ggplot(gsdata, aes_(x = ~x)) + xlab(NULL) +
@@ -56,10 +56,10 @@ custom_gseaplot2 <- function(x, geneSetID, simplify_curve = TRUE) {
     #              colour = "#2479ae", linetype = "dashed", linewidth = 0.33) +
     geom_hline(yintercept = 0, color = "#a9aaaa", linetype = "dashed", linewidth = 0.33) +
     # add area
-    # geom_polygon(aes_(y = ~runningScore),
+    # geom_polygon(aes(y = runningScore),
     #              size=1, fill="#1A9F62", alpha = 0.3) +
     # add line
-    geom_line(aes_(y = ~runningScore, color= ~Description),
+    geom_line(aes(y = runningScore),
               size=2/.pt, color = "#2479ae") +
     # position for cohordinates based on positive or negative enrichment score
     {if(enrichmentScore > 0)annotate("text",
