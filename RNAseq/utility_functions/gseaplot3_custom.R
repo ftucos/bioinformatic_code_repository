@@ -25,17 +25,19 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
   # identify the datapoint that leads to the ES
   es.df <- gsdata %>%
     slice_max(order_by = abs(runningScore), n=1, with_ties = F)
-
+  
   # verify its matching the enrichmentScore
   if(abs(es.df$runningScore - enrichmentScore) > 0.1) {
     stop("Enrichment Score does not match extracted runningScore")
   }
   
+  y_axis.range = max(gsdata$runningScore) - min(gsdata$runningScore)
+  y_axis.min <- min(gsdata$runningScore) - 0.05*y_axis.range
+  y_axis.max <-  max(gsdata$runningScore) + 0.05*y_axis.range
   
   # setup theme
   p1 <- ggplot(gsdata, aes_(x = ~x)) + xlab(NULL) +
     theme_void(8) +
-    coord_cartesian(clip = "off") +
     theme(panel.grid.major.y = element_blank(),
           panel.grid.minor.y = element_blank(),
           panel.background = element_blank(),
@@ -49,7 +51,11 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
           axis.ticks.margin = unit(0, "null"),
           text = element_text(size = 8),
           legend.position = "none") +
-    scale_x_continuous(expand=c(0,0)) +
+    #scale_x_continuous(expand=c(0,0)) +
+    coord_cartesian(clip = "off", ylim = c(y_axis.min, y_axis.max), expand = 0) +
+    # plot genes in the set
+    geom_segment(data = gsdata %>% filter(position == 1), aes(x = x, xend=x, yend = y_axis.min - 0.2*y_axis.range, y =  y_axis.min - 0.247*y_axis.range, ymax =), color="black", size = 0.3, alpha = genesAlpha) +
+    # plot enrichment score line
     geom_segment(data=es.df, aes(x = x, xend = x, y = 0, yend=runningScore),
                  colour = "#2479ae", linetype = "dashed", linewidth = 0.33) +
     # geom_segment(data=es.df, aes_(x = -Inf, xend = ~es, y = enrichmentScore, yend=enrichmentScore),
@@ -73,28 +79,6 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
     ylab("Enrichment Score (ES)") +
     ggtitle(geneSetID)
   
-  p1
-  # now banded plot ---------------------------------------
-  
-  p2 <- ggplot() +
-    geom_vline(data = gsdata %>% filter(position == 1), aes(xintercept=x), color="black", size = 0.3, alpha = genesAlpha) +
-    scale_x_continuous(expand = c(0,0), limits = c(min(gsdata$x), max(gsdata$x))) +
-    scale_y_continuous(expand=c(0,0))  +
-    coord_cartesian(clip = "off") +
-    xlab(NULL) + ylab(NULL) + theme_void(8) +
-    theme(legend.position = "none",
-          #plot.margin = margin(t=-.1, b=0,unit="cm"),
-          plot.margin = margin(t=0, b=0,unit="cm"),
-          plot.background = element_blank(),
-          axis.line = element_blank(),
-          axis.ticks.y = element_blank(),
-          axis.text = element_blank(),
-          axis.ticks = element_blank(),
-          axis.title = element_blank(),
-          axis.ticks.margin = unit(0, "null"),
-          panel.border = element_blank()) +
-    xlab("Gene Rank")
-  
-  
-  p1/p2 + plot_layout(heights = unit(c(2.13, 0.1), "cm"), widths = unit(3.3, "cm"))
+  p1 + plot_layout(heights = unit(2.13, "cm"), widths = unit(3, "cm")) 
+  #ggh4x::force_panelsizes(rows = unit(2.13, "cm"), cols = unit(3, "cm"), respect = F)
 }
