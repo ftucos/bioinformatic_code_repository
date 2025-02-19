@@ -76,7 +76,7 @@ VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj 
                     aes(label = lab), size=3, color="black", segment.alpha = 0.7, max.overlaps = 40)+
     theme_bw() +
     theme(panel.grid = element_blank(),
-          panel.border = element_rect(size = 1),
+          panel.border = element_rect(linewidth = 1),
           legend.position = "none") +
     xlim(x_limits) +
     scale_color_manual(values = c("dodgerblue", "brown1"), na.value = "grey") +
@@ -191,9 +191,10 @@ runGSEA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE,
               TERM2GENE = selected_t2g,
               pAdjustMethod = "fdr",
               by = "fgsea",
-              minGSSize = 5, maxGSSize = 500,
+              minGSSize = 5, maxGSSize = 2000,
               pvalueCutoff = 1,
               nPermSimple = 10000,
+              #nPerm = 10000,
               eps = 0,
               seed = FALSE # use session seed
               )
@@ -246,7 +247,7 @@ plotHEATMAP <- function(zscore, selected_genes, title, ylab) {
     theme_bw() +
     theme(panel.grid = element_blank(),
           plot.title.position = "plot",
-          panel.border = element_rect(size=0.75),
+          panel.border = element_rect(linewidth=0.75),
           legend.position = "bottom",
           axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
     ylab(ylab)+
