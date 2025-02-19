@@ -36,7 +36,7 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
   y_axis.max <-  max(gsdata$runningScore) + 0.05*y_axis.range
   
   # setup theme
-  p1 <- ggplot(gsdata, aes_(x = ~x)) + xlab(NULL) +
+  p1 <- ggplot(gsdata, aes_(x = ~x)) + 
     theme_void(8) +
     theme(panel.grid.major.y = element_blank(),
           panel.grid.minor.y = element_blank(),
@@ -76,7 +76,7 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
                                      x=max(gsdata$x)*0.03, y=enrichmentScore*0.97,
                                      hjust = "left", vjust = "bottom",size=3,
                                      label = signif_label)} +
-    ylab("Enrichment Score (ES)") +
+    ylab("Enrichment Score (ES)") + xlab("Gene Rank") +
     ggtitle(geneSetID)
   
   p1 + plot_layout(heights = unit(2.13, "cm"), widths = unit(3, "cm")) 
