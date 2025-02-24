@@ -1,4 +1,4 @@
-library(RColorBrewer)
+library(scales)
 
 custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRUE) {
   statistics <- x %>% as.data.frame() %>% filter(Description == geneSetID)
@@ -15,8 +15,8 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
   
   # statistics label
   signif_label <- ifelse(nrow(x@result) > 1,
-                         paste0("NES: ", round(statistics$NES,2),"\np-value: ", format(statistics$pvalue, digits=2, scipen = 0), "\nq-value: ",  format(statistics$qvalues, digits=2, scipen = 0)),
-                         paste0("NES: ", round(statistics$NES,2),"\np-value: ", format(statistics$pvalue, digits=2, scipen = 0))
+                         paste0("NES: ", round(statistics$NES,2),"\np: ", format(statistics$pvalue, digits=2, scipen = 0), "\nqval: ",  format(statistics$qvalues, digits=2, scipen = 0)),
+                         paste0("NES: ", round(statistics$NES,2),"\np: ", format(statistics$pvalue, digits=2, scipen = 0))
   )
   
   
@@ -36,8 +36,7 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
   y_axis.max <-  max(gsdata$runningScore) + 0.05*y_axis.range
   
   # setup theme
-  p1 <- ggplot(gsdata, aes_(x = ~x)) + 
-    theme_void(8) +
+  p1 <- ggplot() + 
     theme(panel.grid.major.y = element_blank(),
           panel.grid.minor.y = element_blank(),
           panel.background = element_blank(),
@@ -46,15 +45,16 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
           axis.ticks.length=unit(.07, "cm"),
           axis.line = element_line(color = "black", linewidth = 0.33, lineend="square"),
           axis.text = element_text(size = 8, color = "black"),
-          axis.title.x = element_text(color = "black", size = 10),
+          axis.title = element_text(color = "black", size = 10),
+          axis.title.x = element_text(color = "black", size = 10, margin = margin(t=0.2, b=0,unit="cm")),
           plot.margin = margin(t=0, b=0,unit="cm"),
-          axis.ticks.margin = unit(0, "null"),
           text = element_text(size = 8),
           legend.position = "none") +
+    scale_y_continuous(labels = label_number(drop0trailing = TRUE)) +
     #scale_x_continuous(expand=c(0,0)) +
     coord_cartesian(clip = "off", ylim = c(y_axis.min, y_axis.max), expand = 0) +
     # plot genes in the set
-    geom_segment(data = gsdata %>% filter(position == 1), aes(x = x, xend=x, yend = y_axis.min - 0.2*y_axis.range, y =  y_axis.min - 0.247*y_axis.range, ymax =), color="black", size = 0.3, alpha = genesAlpha) +
+    geom_segment(data = gsdata %>% filter(position == 1), aes(x = x, xend=x, yend = y_axis.min - 0.2*y_axis.range, y =  y_axis.min - 0.247*y_axis.range, ymax =), color="black", linewidth = 0.3, alpha = genesAlpha) +
     # plot enrichment score line
     geom_segment(data=es.df, aes(x = x, xend = x, y = 0, yend=runningScore),
                  colour = "#2479ae", linetype = "dashed", linewidth = 0.33) +
@@ -65,7 +65,7 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
     # geom_polygon(aes(y = runningScore),
     #              size=1, fill="#1A9F62", alpha = 0.3) +
     # add line
-    geom_line(aes(y = runningScore),
+    geom_line(data = gsdata, aes(x=x, y = runningScore),
               size=2/.pt, color = "#2479ae") +
     # position for cohordinates based on positive or negative enrichment score
     {if(enrichmentScore > 0)annotate("text",
@@ -76,7 +76,7 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
                                      x=max(gsdata$x)*0.03, y=enrichmentScore*0.97,
                                      hjust = "left", vjust = "bottom",size=3,
                                      label = signif_label)} +
-    ylab("Enrichment Score (ES)") + xlab("Gene Rank") +
+    ylab("Enrichment Score") + xlab("Gene Rank") +
     ggtitle(geneSetID)
   
   p1 + plot_layout(heights = unit(2.13, "cm"), widths = unit(3, "cm")) 
