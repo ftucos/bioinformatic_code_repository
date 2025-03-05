@@ -37,8 +37,8 @@ custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRU
   
   # setup theme
   p1 <- ggplot() + 
-    theme(panel.grid.major.y = element_blank(),
-          panel.grid.minor.y = element_blank(),
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
           panel.background = element_blank(),
           panel.border = element_blank(),
           axis.ticks = element_line(color = "black", linewidth = 0.33, lineend="butt"),

@@ -8,8 +8,8 @@ multiSampleGSEAplot <- function(GSEAresult, geneSetID, genesAlpha = 0.5,
 
     custom_theme <- function() {
     #theme_void(8) +
-    theme(panel.grid.major.y = element_blank(),
-          panel.grid.minor.y = element_blank(),
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
           panel.background = element_blank(),
           panel.border = element_blank(),
           axis.ticks = element_line(color = "black", linewidth = 0.33, lineend="butt"),
