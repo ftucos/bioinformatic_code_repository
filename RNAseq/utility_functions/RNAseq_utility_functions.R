@@ -58,11 +58,16 @@ VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj 
       log2FoldChange >= thrLog2FC & padj <= thrPadj ~ "up",
       log2FoldChange <= -thrLog2FC & padj <= thrPadj ~ "down"),
       # labels to be shown need to be matching upregulated genes and be within the filtering threshold
-      lab = ifelse(abs(log2FoldChange) >= thrLog2FC &
-                     padj <= thrPadj &
-                     # annotate protein coding only 
-                     (!protein_coding_label_only) | (ensembl_gene_id %in% (ensembl2symbol %>% filter(gene_biotype == "protein_coding") %>% pull("ensembl_gene_id"))) &
-                     abs(log2FoldChange * -log10(pvalue)) >= label_cutof, external_gene_name, NA)) %>%
+      lab = ifelse(
+        # log2 Fold Change is higher than selected threshold
+        abs(log2FoldChange) >= thrLog2FC &
+          # padj is below selected threshold  
+          padj <= thrPadj &
+          # annotate protein coding only 
+          ((!protein_coding_label_only) | gene_biotype == "protein_coding") &
+          abs(log2FoldChange * -log10(pvalue)) >= label_cutof,
+        external_gene_name, NA)
+    ) %>%
     # plot on background genes that are not within the filtering threshold
     arrange(color)
   
