@@ -90,20 +90,59 @@ VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj 
 }
 
 ## Prepare imput data for GSEA
-PrepareForGSEA <- function(result, .na.rm = FALSE) {
+PrepareForGSEA <- function(result, rankingMetric = c("log2FoldChange", "pvalue", "combined_score"), .na.rm = FALSE) {
   
-  # chose whether remove genes with log2FC undefined (lowly expressed) or set theire log2FC to 0 since they are not activated by the treatment
-  if (.na.rm == TRUE) {
+  
+  # this will (a) pick the first entry of the vector as the default
+  # (b) partial‐match or reject invalid values
+  rankingMetric <- match.arg(rankingMetric)
+  
+  if (rankingMetric == "log2FoldChange") {
+    # chose whether remove genes with log2FC undefined (lowly expressed) or set theire log2FC to 0 since they are not activated by the treatment
+    if (.na.rm == TRUE) {
+      result <- result %>%
+        filter(!is.na(log2FoldChange))
+    } else {
+      result <- result %>%
+        mutate(log2FoldChange = ifelse(is.na(log2FoldChange), 0, log2FoldChange))
+    }
+    
+    # Generate a sorted named vector with ensembl as name and log2FC as value
+    .input <- setNames(result$log2FoldChange, result$ensembl_gene_id) %>%
+      sort(decreasing = TRUE)
+    
+  } else if (rankingMetric == "pvalue") {
+    if (.na.rm == TRUE) {
+      result <- result %>%
+        filter(!is.na(pvalue))
+    } else {
+      result <- result %>%
+        mutate(pvalue = ifelse(is.na(pvalue), 1, pvalue))
+    }
+    
+    # Generate a sorted named vector with ensembl as name and log2FC as value
+    .input <- setNames(result$pvalue, result$ensembl_gene_id) %>%
+      sort(decreasing = TRUE)
+    
+  } else if (rankingMetric == "combined_score") {
     result <- result %>%
-      filter(!is.na(log2FoldChange))
+      mutate(combined_score = log2FoldChange * -log10(pvalue))
+    
+    if (.na.rm == TRUE) {
+      result <- result %>%
+        filter(!is.na(combined_score))
+    } else {
+      result <- result %>%
+        mutate(combined_score = ifelse(is.na(combined_score), 0, combined_score))
+    }
+    
+    # Generate a sorted named vector with ensembl as name and log2FC as value
+    .input <- setNames(result$test, result$ensembl_gene_id) %>%
+      sort(decreasing = TRUE)
+    
   } else {
-    result <- result %>%
-      mutate(log2FoldChange = ifelse(is.na(log2FoldChange), 0, log2FoldChange))
+    stop("Invalid ranking metric. Choose either 'log2FoldChange', 'pvalue', or 'combined_score'.")
   }
-  
-  # Generate a sorted named vector with ensembl as name and log2FC as value
-  .input <- setNames(result$log2FoldChange, result$ensembl_gene_id) %>%
-    sort(decreasing = TRUE)
   
   return(.input)
 }
@@ -153,7 +192,7 @@ plotGSEA <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", fixed_d
 }
 
 ## Run GSEA
-runGSEA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE, toDataFrame = TRUE, custom_annotation=F, ...) {
+runGSEA <- function(result, annotation, rankingMetric = "log2FoldChange", title = "", cutoff = 0.05, plot = FALSE, toDataFrame = TRUE, custom_annotation=F, ...) {
   if(custom_annotation) {
     # custom t2g object to be passed into annotatation argument
     selected_t2g <- annotation
@@ -162,7 +201,7 @@ runGSEA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE,
       t2g %>% filter(gs_subcat == annotation) %>% select(gs_name, ensembl_gene)
   }
     
-  .em <- GSEA(PrepareForGSEA(result),
+  .em <- GSEA(PrepareForGSEA(result, rankingMetric),
               TERM2GENE = selected_t2g,
               pAdjustMethod = "fdr",
               by = "fgsea",
