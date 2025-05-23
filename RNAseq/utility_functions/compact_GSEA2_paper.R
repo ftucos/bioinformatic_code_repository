@@ -7,8 +7,10 @@ library(ggh4x)
 neglog10_trans <- function(base = 10) {
   trans <- function(x) -log(x, base)
   inv <- function(x) base^(-x)
-  trans_new(paste0("reverselog-", format(base)), trans, inv, 
-            log_breaks(base = base), 
+  trans_new(name = paste0("reverselog-", format(base)),
+            transform = trans,
+            inverse = inv, 
+            breaks = log_breaks(base = base, n = 5), 
             domain = c(1e-100, Inf))
 }
 
