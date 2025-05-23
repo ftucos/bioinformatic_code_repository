@@ -1,3 +1,8 @@
+library(biomaRt)
+library(data.table)
+library(tidyverse)
+library(glue)
+
 ##############################
 #           OPTIONS          #
 ##############################
@@ -5,7 +10,11 @@
 useCache <- TRUE
 cacheDir <- "/Users/tucos/.bioinfoCache"
 
-# pick the latest chache files available
+##############################
+#             RUN            #
+##############################
+
+# Look for the latest cache files available based on date of data retrieval
 biomartCache.human <- list.files(cacheDir, "ensembl2symbol-hsapiens_gene_ensembl.tsv", full.names = T) %>% sort(decreasing = T) %>% head(n=1)
 biomartCache.mouse <- list.files(cacheDir, "ensembl2symbol-mmusculus_gene_ensembl.tsv", full.names = T) %>% sort(decreasing = T) %>% head(n=1)
 t2gCache.human <- list.files(cacheDir, "t2g-human.tsv.gz", full.names = T) %>% sort(decreasing = T) %>% head(n=1)
@@ -13,27 +22,41 @@ t2gCache.mouse <- list.files(cacheDir, "t2g-mouse.tsv.gz", full.names = T) %>% s
 
 date <- Sys.Date()
 
-##############################
-#             RUN            #
-##############################
-
-library(data.table)
-library(tidyverse)
-library(glue)
+# specify preferred packages to avoid names conflicts
 conflicted::conflict_prefer("select", "dplyr")
 conflicted::conflict_prefer("filter", "dplyr")
 conflicted::conflict_prefer("rename", "dplyr")
 
 if (species %in% c("human", "homo sapiens", "hsapiens", "hsa")) {
-  biomartCache <- biomartCache.human
-  t2gCache <- t2gCache.human
   
+  # if cache is available for human biomart annotation used for ensembl_id to hgnc_symbol conversion, load it 
+  if (useCache & !is.na(biomartCache.human)){
+    biomartCache <- biomartCache.human
+  } else {
+    useCache == FALSE
+  }
+  # if cache is available for human term 2 gene MSigDB annotation for pathway analysis, load it 
+  if (useCache & !is.na(t2gCache.human)){
+    t2gCache <- t2gCache.human
+  }  else {
+    useCache == FALSE
+  }
+  
+  # 
   biomart_species = "hsapiens_gene_ensembl"
   kegg_species = "hsa"
   
 } else if (species %in% c("mouse", "mus musculus", "mmusculus", "mmu")) {
-  biomartCache <- biomartCache.mouse
-  t2gCache <- t2gCache.mouse
+  if (useCache & !is.na(biomartCache.mouse)){
+    biomartCache <- biomartCache.mouse
+  } else {
+    useCache == FALSE
+  }
+  if (useCache & !is.na(t2gCache.mouse)){
+    t2gCache <- t2gCache.moise
+  }  else {
+    useCache == FALSE
+  }
   
   biomart_species = "mmusculus_gene_ensembl"
   kegg_species = "mmu"
@@ -42,51 +65,62 @@ if (species %in% c("human", "homo sapiens", "hsapiens", "hsa")) {
   
 }
 
-# Gene ID conversion table -----------------------
+# Load biomart annotation used for Ensembl Id (ensembl_gene_id) to HGNC Symbol (external_gene_name) conversion -----------------------
 if(useCache) {
+  # Load cached annotation
   ensembl2symbol = fread(biomartCache)
 } else {
+  # Load the latest biomart annotation
   mart <- biomaRt::useMart("ensembl", dataset = biomart_species)
   ensembl2symbol <- biomaRt::getBM(mart = mart,
                                    attributes = c("external_gene_name", "ensembl_gene_id",
                                                   "gene_biotype",
                                                   "description")) %>%
-    ## Remove source info in the description field
+    ## Remove source info from the description field
     mutate(description = str_remove(description, "\\s?\\[.*\\]\\s?"))
+  # write the file to cache
   write_tsv(ensembl2symbol, paste0(cacheDir, "/", date, "-ensembl2symbol", "-", biomart_species, ".tsv"))
 }
 
 # GSEA annotation data -----------------------------------------------------------------
 # Load latest KEGG pathway annotation data -----------------------------------
 if(useCache) {
+  # Load latest KEGG annotation cached
   t2g = fread(t2gCache)
 } else {
+  # Load KEGG association between pathway ID and gene ID
   pathway2gene = read_tsv(paste0("http://rest.kegg.jp/link/",kegg_species,"/pathway"), col_names = c("pathway_id", "gene_id"))
+  # Load KEGG association between pathway ID and pahtway names
   pathway2name = read_tsv(paste0("http://rest.kegg.jp/list/pathway/", kegg_species), col_names = c("pathway_id", "pathway"))
+  # Load KEGG association between gene ID and gene names
   gene2name = read_tsv(paste0("http://rest.kegg.jp/list/", kegg_species), col_names = c("gene_id", "biotype", "X3", "gene")) 
   
-  gene2name <- gene2name %>%
-    # gene with no semicolons have no name (eg. annotated cDNA sequences)
+  gene2name.1 <- gene2name %>%
+    # remove genes with no semicolons, they have no official HGNC name (eg. annotated cDNA sequences)
     filter(str_detect(gene, ";")) %>%
+    # extract official HGNC name
     mutate(gene = str_extract(gene, "^[^;]+") %>% strsplit(",\\s")) %>%
-    # multiple gene names mapping the same id beacuse the mapping is based around orthologues
+    # you can have multiple gene names mapping the same id because the mapping is based around orthologues
     unnest(cols = "gene")
   
   # no empty fields
   #table(is.na(gene2name))
   
+  # build kegg term to gene table
   kegg_t2g <- pathway2name %>%
     left_join(pathway2gene %>% mutate(pathway_id = str_remove(pathway_id, "path:"))) %>%
-    left_join(gene2name)
+    left_join(gene2name.1)
   
-  table(is.na(kegg_t2g))
+  # count number of empty fields
+  n_rows_with_missing_genes = sum(is.na(kegg_t2g))
   
-  # remove 11 pathways with missing genes
+  print(glue("Removing {n_rows_with_missing_genes} rows with missing gene names"))
   kegg_t2g <- kegg_t2g %>%
     filter(!is.na(gene))
   
   #table(is.na(kegg_t2g))
   
+  # Check how many genes symbols are present in the ensembl2symbol table
   table(kegg_t2g$gene %in% ensembl2symbol$external_gene_name)
   
   kegg_t2g <- kegg_t2g %>%
@@ -125,6 +159,8 @@ if(useCache) {
 }
 
 # Pathway annotation table --------------------------------------------
+# Keep only essential annotations of interest
+
 pathway_annotation_table <- full_join(
   t2g %>% filter(gs_subcat == "HALLMARK") %>%
     select(gs_name, ensembl_gene) %>%
