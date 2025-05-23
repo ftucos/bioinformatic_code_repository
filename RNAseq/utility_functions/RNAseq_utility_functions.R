@@ -137,7 +137,7 @@ PrepareForGSEA <- function(result, rankingMetric = c("log2FoldChange", "pvalue",
     }
     
     # Generate a sorted named vector with ensembl as name and log2FC as value
-    .input <- setNames(result$test, result$ensembl_gene_id) %>%
+    .input <- setNames(result$combined_score, result$ensembl_gene_id) %>%
       sort(decreasing = TRUE)
     
   } else {
