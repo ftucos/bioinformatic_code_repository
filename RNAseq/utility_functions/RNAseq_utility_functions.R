@@ -219,15 +219,6 @@ runGSEA <- function(result, annotation, title = "", cutoff = 0.05, plot = FALSE,
   }
 }
 
-# Define custom GSEA plot function ------------
-custom_gseaplot <- function(res, pathway) {
-  statistics <- res %>% as.data.frame() %>% filter(Description == pathway)
-  gseaplot(res, geneSetID = pathway, by = "runningScore", title = pathway, color.line = "black") + 
-    theme_minimal() + 
-    ylab("Enrichment Score") +
-    xlab("")+
-    labs(caption = paste0("NES: ", round(statistics$NES,2),", p-value: ", round(statistics$pvalue,4), ", q-value: ",  round(statistics$qvalues,4)))
-}
 
 # Plot heatmap -----------------------
 plotHEATMAP <- function(zscore, selected_genes, title, ylab) {
