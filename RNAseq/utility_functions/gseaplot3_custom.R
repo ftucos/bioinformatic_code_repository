@@ -1,6 +1,6 @@
 library(scales)
 
-custom_gseaplot2 <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRUE) {
+custom_gseaplot <- function(x, geneSetID, genesAlpha = 0.5, simplifyCurve = TRUE) {
   statistics <- x %>% as.data.frame() %>% filter(Description == geneSetID)
   
   gsdata <- enrichplot:::gsInfo(x, geneSetID)
