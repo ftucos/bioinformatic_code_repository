@@ -53,7 +53,7 @@ if (species %in% c("human", "homo sapiens", "hsapiens", "hsa")) {
     useCache == FALSE
   }
   if (useCache & !is.na(t2gCache.mouse)){
-    t2gCache <- t2gCache.moise
+    t2gCache <- t2gCache.mouse
   }  else {
     useCache == FALSE
   }
