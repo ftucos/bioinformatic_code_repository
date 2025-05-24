@@ -36,7 +36,7 @@ ResToTable <- function(res, package) {
 }
 
 # Volcano Plot -------------------------------------
-VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj = 0.05, pctLabel = 0.005, protein_coding_label_only = FALSE) {
+volcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj = 0.05, pctLabel = 0.005, protein_coding_label_only = FALSE) {
   
   # requires you to have applied ResToTable()
   x_limits <- c(-max(abs(result$log2FoldChange), na.rm=T), max(abs(result$log2FoldChange), na.rm=T))
