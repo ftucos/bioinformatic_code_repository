@@ -90,7 +90,7 @@ VolcanoPlot <- function(result, title = element_blank(), thrLog2FC = 1, thrPadj 
 }
 
 ## Prepare imput data for GSEA
-PrepareForGSEA <- function(result, rankingMetric = c("log2FoldChange", "pvalue", "combined_score"), .na.rm = FALSE) {
+PrepareForGSEA <- function(result, rankingMetric = c("log2FoldChange", "signed_pvalue", "combined_score"), .na.rm = FALSE) {
   
   
   # this will (a) pick the first entry of the vector as the default
@@ -111,17 +111,18 @@ PrepareForGSEA <- function(result, rankingMetric = c("log2FoldChange", "pvalue",
     .input <- setNames(result$log2FoldChange, result$ensembl_gene_id) %>%
       sort(decreasing = TRUE)
     
-  } else if (rankingMetric == "pvalue") {
+  } else if (rankingMetric == "signed_pvalue") {
     if (.na.rm == TRUE) {
       result <- result %>%
-        filter(!is.na(pvalue))
+        filter(!is.na(pvalue), !is.na(log2FoldChange))
     } else {
       result <- result %>%
-        mutate(pvalue = ifelse(is.na(pvalue), 1, pvalue))
+        mutate(pvalue = ifelse(is.na(pvalue), 1, pvalue),
+               log2FoldChange = ifelse(is.na(log2FoldChange), 0, log2FoldChange))
     }
     
     # Generate a sorted named vector with ensembl as name and log2FC as value
-    .input <- setNames(result$pvalue, result$ensembl_gene_id) %>%
+    .input <- setNames(sign(result$log2FoldChange)*result$pvalue, result$ensembl_gene_id) %>%
       sort(decreasing = TRUE)
     
   } else if (rankingMetric == "combined_score") {
