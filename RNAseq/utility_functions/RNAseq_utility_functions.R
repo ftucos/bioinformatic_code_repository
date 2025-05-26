@@ -5,34 +5,34 @@ library(ggrepel)
 library(egg)
 library(gridExtra)
 library(tidyverse)
+library(colorspace)
+library(scales)
+
 conflicted::conflict_prefer("select", "dplyr")
 conflicted::conflict_prefer("filter", "dplyr")
 conflicted::conflict_prefer("rename", "dplyr")
 
-###############################
-#          OPTIONS            #
-###############################
 
 # Annotate Result Table ---------------------------
 ResToTable <- function(res, package) {
-   if (package == "DESeq2") {
-     # res obtained from DESeq2::result(dds) or DESeq2::lfcShrink(dds) functions 
-     result.table <- res %>% 
-       as.data.frame() %>%
-       rownames_to_column("ensembl_gene_id") %>%
-       left_join(ensembl2symbol) %>%
-       select(external_gene_name, log2FoldChange, pvalue, padj, mean_gene_abundance = baseMean, gene_biotype, description, ensembl_gene_id)
-   
-    } else if (package == "edgeR") {
-     # res obtained from edgeR::topTags(qlf) function
-     result.table <- res$table %>%
-       rownames_to_column("ensembl_gene_id") %>%
-       left_join(ensembl2symbol) %>%
-       select(external_gene_name, log2FoldChange = logFC, pvalue = PValue,  padj = FDR, mean_gene_abundance = logCPM, gene_biotype, description, ensembl_gene_id)
-    } else {
-     warning("package argument must be either 'DESeq2' or 'edgeR'!")
-     return(NULL)
-   }
+  if (package == "DESeq2") {
+    # res obtained from DESeq2::result(dds) or DESeq2::lfcShrink(dds) functions 
+    result.table <- res %>% 
+      as.data.frame() %>%
+      rownames_to_column("ensembl_gene_id") %>%
+      left_join(ensembl2symbol) %>%
+      select(external_gene_name, log2FoldChange, pvalue, padj, mean_gene_abundance = baseMean, gene_biotype, description, ensembl_gene_id)
+    
+  } else if (package == "edgeR") {
+    # res obtained from edgeR::topTags(qlf) function
+    result.table <- res$table %>%
+      rownames_to_column("ensembl_gene_id") %>%
+      left_join(ensembl2symbol) %>%
+      select(external_gene_name, log2FoldChange = logFC, pvalue = PValue,  padj = FDR, mean_gene_abundance = logCPM, gene_biotype, description, ensembl_gene_id)
+  } else {
+    warning("package argument must be either 'DESeq2' or 'edgeR'!")
+    return(NULL)
+  }
 }
 
 # Volcano Plot -------------------------------------
@@ -154,7 +154,7 @@ plotGSEA <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", fixed_d
   if (subgroup == "pos") {
     .GSEA <- .GSEA %>% filter(NES > 0)
   } else if (subgroup == "neg") {
-      .GSEA <- .GSEA %>% filter(NES < 0)
+    .GSEA <- .GSEA %>% filter(NES < 0)
   }
   plot <- .GSEA %>%
     filter(qvalues <= cutoff) %>%
@@ -175,10 +175,10 @@ plotGSEA <- function(.GSEA, title = "", cutoff = 0.05, subgroup = "all", fixed_d
   
   # Fixed dimensions based on number of pathways
   if(fixed_dimensions) {
-   plot <-  set_panel_size(plot,
-      # define plot hieght based on the numer of pathways to be plotted
-      height=unit((.GSEA %>% filter(qvalues <= cutoff ) %>% nrow())/1.5, "cm"),
-      width=unit(8, "cm")
+    plot <-  set_panel_size(plot,
+                            # define plot hieght based on the numer of pathways to be plotted
+                            height=unit((.GSEA %>% filter(qvalues <= cutoff ) %>% nrow())/1.5, "cm"),
+                            width=unit(8, "cm")
     )
     # plot the plot
     plot(plot)
@@ -201,7 +201,7 @@ runGSEA <- function(result, annotation, rankingMetric = "log2FoldChange", title 
     selected_t2g <- # extract t2g of interest based on string passed into annotation
       t2g %>% filter(gs_subcat == annotation) %>% select(gs_name, ensembl_gene)
   }
-    
+  
   .em <- GSEA(PrepareForGSEA(result, rankingMetric),
               TERM2GENE = selected_t2g,
               pAdjustMethod = "fdr",
@@ -212,7 +212,7 @@ runGSEA <- function(result, annotation, rankingMetric = "log2FoldChange", title 
               #nPerm = 10000,
               eps = 0,
               seed = FALSE # use session seed
-              )
+  )
   .em.summary <- as.data.frame(.em)
   
   # If not specified, use the object name as plot title
@@ -230,46 +230,7 @@ runGSEA <- function(result, annotation, rankingMetric = "log2FoldChange", title 
 }
 
 
-# Plot heatmap -----------------------
-plotHEATMAP <- function(zscore, selected_genes, title, ylab) {
-  heatmap.input <- zscore %>%
-    filter(external_gene_name %in% selected_genes,
-           !is.na(zscore))
-  
-  heatmap.input <- heatmap.input %>%
-    mutate(external_gene_name = factor(external_gene_name,
-                                       levels=result %>% arrange(log2FoldChange*-log10(pvalue)) %>% filter(external_gene_name %in% selected_genes) %>% pull("external_gene_name") %>% unique()))
-  
-  heatmap <- heatmap.input %>%
-    # remove cell line name
-  #  mutate(sample =  str_replace_all(sample, "_", " ") %>% str_remove("^[^\\s]+")) %>%
-    ggplot(aes(x=sample, y=external_gene_name, fill=zscore)) +
-    geom_tile()+
-    scale_x_discrete(expand=c(0, 0)) + 
-    scale_y_discrete(expand=c(0, 0))+
-    scale_fill_distiller(type = "div",palette = 5, name="z-score(log2(CPM+1))",
-                         guide = guide_colorbar(frame.colour = "black", ticks.colour = "black"))+
-    theme(legend.position = "none")+
-    theme_bw() +
-    theme(panel.grid = element_blank(),
-          plot.title.position = "plot",
-          panel.border = element_rect(linewidth=0.75),
-          legend.position = "bottom",
-          axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
-    ylab(ylab)+
-    xlab("") +
-    ggtitle(title)
-  
-  heatmap <-  set_panel_size(heatmap,
-                             # define plot hieght based on the numer of pathways to be plotted
-                             height=unit((selected_genes %in% heatmap.input$external_gene_name %>% sum())/2, "cm"),
-                             width=unit(8, "cm"))
-  
-  heatmap
-}
-
 # ORA -----------------------------------
-
 ## Plot ORA table
 plotORA <- function(.ORA, title = "", cutoff = 0.05, subgroup = "all", truncate_label_at = 45) {
   .ORA <- .ORA %>% 
@@ -413,3 +374,116 @@ runORA <- function(result, annotation, title = "", cutoff = 0.05, log2FC_thresho
   .em.summary
 }
 
+
+# Plot heatmap -----------------------
+plotHeatmap <- function(vsd, metadata, diff_exp_result, selected_genes,
+                        x_axis_var, grouping_var,
+                        title = "", hide_not_expressed = TRUE,
+                        plotting_value = c("zscore", "centered_vst", "vst")) {
+  
+  # ** prepare Heatmap input data **
+  # preserve only valid gene symbols and throw a warning for faulty ones
+  selected_genes_valid <- selected_genes[selected_genes %in% ensembl2symbol$external_gene_name]
+  if (length(selected_genes_valid) < length(unique(selected_genes))) {
+    warning(paste0("The following genes were not found in the ensembl2symbol mapping: ",
+                   paste(base::setdiff(selected_genes, selected_genes_valid), collapse = ", ")))
+  }
+  
+  selected_ensembl_genes <- ensembl2symbol %>%
+    filter(external_gene_name %in% selected_genes_valid) %>%
+    filter(!is.na(external_gene_name)) %>%
+    # preserve only genes that are present in the VST data
+    filter(ensembl_gene_id %in% rownames(vsd)) %>%
+    pull(ensembl_gene_id)
+  
+  # Filter VST data for selected genes
+  vsd_filtered <- vsd[selected_ensembl_genes, ]
+  
+  # rank genes from highest to lowest differentially expressed
+  gene_order <- diff_exp_result %>%
+    dplyr::filter(ensembl_gene_id %in% selected_ensembl_genes) %>%
+    # if a heatmap gene is not present, add it to the list assuming log2FC = 1, pvalue = 1 for ranking purpose
+    bind_rows(
+      data.frame(external_gene_name = base::setdiff(selected_genes_valid, diff_exp_result$external_gene_name),
+                 log2FoldChange = 1, pvalue = 1) %>%
+        left_join(ensembl2symbol)
+    ) %>%
+    arrange(desc(log2FoldChange * -log10(pvalue))) %>%
+    select(external_gene_name, ensembl_gene_id)
+  
+  # convert to long format
+  heatmap_data <- vsd_filtered %>%
+    as.data.frame() %>%
+    rownames_to_column("ensembl_gene_id") %>%
+    gather(key = "sample_name", value = "vst", -ensembl_gene_id) %>%
+    right_join(ensembl2symbol, .) %>%
+    left_join(metadata) %>%
+    # compute z-score and meaen centering
+    group_by(external_gene_name, ensembl_gene_id) %>%
+    mutate(zscore = scale(vst, center = TRUE, scale = TRUE)[,1],
+           centered_vst = scale(vst, center = TRUE, scale = FALSE)[,1]) %>%
+    # specify gene plotting order
+    mutate(ensembl_gene_id = factor(ensembl_gene_id, levels = gene_order$ensembl_gene_id),
+           external_gene_name = factor(external_gene_name, levels = gene_order$external_gene_name))
+  
+  
+  # remove genes with 0 counts (constant vst) whose z_score is NaN
+  if (hide_not_expressed) {
+    heatmap_data <- heatmap_data %>% filter(!is.nan(zscore))
+  }
+  
+  
+  # ** prepare plotting aesthetics **
+  y_label =  recode(plotting_value,
+                    "zscore" = "z-score (VST)",
+                    "centered_vst" = "mean centered VST",
+                    "vst" = "VST")
+  
+  # measured to achieve an aspect ratio = 1
+  n_rows = length(unique(heatmap_data$external_gene_name))
+  n_cols = length(unique(
+    interaction(heatmap_data[[x_axis_var]], heatmap_data[[grouping_var]])
+  ))
+  
+  # ** plot heatmap **
+  heatmap <- ggplot(heatmap_data, aes(x=.data[[x_axis_var]], y=external_gene_name)
+  ) +
+    geom_tile(aes(fill=.data[[plotting_value]])) +
+    # pick diverging or sequential palette based on data type
+    {  if (plotting_value == "vst") {
+      scale_fill_continuous_sequential(palette = "inferno", name=y_label,
+                                       rev = F,
+                                       labels = label_number(drop0trailing = TRUE),
+                                       guide = guide_colorbar(frame.colour = "black", ticks.colour = "black"))
+    } else {
+      scale_fill_distiller(type = "div", palette = "RdBu", name=y_label,
+                           labels = label_number(drop0trailing = TRUE),
+                           guide = guide_colorbar(frame.colour = "black", ticks.colour = "black"))
+    }
+    } +
+    scale_x_discrete(expand=c(0, 0)) + 
+    scale_y_discrete(expand=c(0, 0)) +
+    theme_bw() +
+    theme(panel.grid          = element_blank(),
+          plot.title.position = "plot",
+          axis.title.x        = element_blank(),
+          axis.ticks          = element_line(linewidth=0.375, color = "black"),
+          panel.border        = element_rect(linewidth=0.375, color = "black"),
+          panel.spacing.x     = unit(0, "lines"), # remove panel spacing
+          legend.position     = "bottom",
+          strip.background    = element_blank(),
+          strip.text          = element_text(size = 10, color = "black"),
+          strip.clip          = "off",
+          axis.text           = element_text(size = 10, color = "black"),
+          axis.text.y           = element_text(size = 8, color = "black"),
+          axis.text.x         = element_text(angle = 90, hjust = 1, vjust = 0.5),
+    ) +
+    ylab(y_label)+
+    facet_grid(~.data[[grouping_var]], scales= "free", space = "free") +
+    ggtitle(title) +
+    coord_cartesian(clip = "off") + # remove panel clipping mask
+    # set  plot dimensions to obtain cubic tiles
+    plot_layout(heights = unit(n_rows/3, "cm"), widths = unit(n_cols/3, "cm")) 
+  
+  return(heatmap)
+}
