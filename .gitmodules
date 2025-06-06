@@ -1,0 +1,3 @@
+[submodule "RNAseq/RNAseq_utils"]
+	path = RNAseq/RNAseq_utils
+	url = git@github.com:ftucos/RNAseq_utils.git
