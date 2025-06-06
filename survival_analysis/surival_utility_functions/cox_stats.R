@@ -1,5 +1,4 @@
 cox_stats <- function(model) {
-  model <- cox.model
   summary_table          <- summary(model)
   coefficient_table      <- summary_table$coefficients # table with β, se, z, p-value
   confidence_intervals   <- summary_table$conf.int     # table with HR & CI
